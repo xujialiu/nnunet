@@ -6,6 +6,8 @@ nnUNet_results
 debugger*
 script.sh
 
+ln_*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
