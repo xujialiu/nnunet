@@ -13,7 +13,7 @@ from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
 
 # from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision import (
-    nnUNetTrainer,
+    nnUNetTrainerNoDeepSupervision,
 )
 
 print("no deep supervision")
@@ -39,7 +39,7 @@ def get_trainer_from_args(
     dataset_name_or_id: Union[int, str],
     configuration: str,
     fold: int,
-    trainer_name: str = "nnUNetTrainer",
+    trainer_name: str = "nnUNetTrainerNoDeepSupervision",
     plans_identifier: str = "nnUNetPlans",
     device: torch.device = torch.device("cuda"),
 ):
@@ -56,8 +56,8 @@ def get_trainer_from_args(
             f"{join(nnunetv2.__path__[0], 'training', 'nnUNetTrainer')}). If it is located somewhere "
             f"else, please move it there."
         )
-    assert issubclass(nnunet_trainer, nnUNetTrainer), (
-        "The requested nnunet trainer class must inherit from nnUNetTrainer"
+    assert issubclass(nnunet_trainer, nnUNetTrainerNoDeepSupervision), (
+        "The requested nnunet trainer class must inherit from nnUNetTrainerNoDeepSupervision"
     )
 
     # handle dataset input. If it's an ID we need to convert to int from string
@@ -91,7 +91,7 @@ def get_trainer_from_args(
 
 
 def maybe_load_checkpoint(
-    nnunet_trainer: nnUNetTrainer,
+    nnunet_trainer: nnUNetTrainerNoDeepSupervision,
     continue_training: bool,
     validation_only: bool,
     pretrained_weights_file: str = None,
@@ -198,7 +198,7 @@ def run_training(
     dataset_name_or_id: Union[str, int],
     configuration: str,
     fold: Union[int, str],
-    trainer_class_name: str = "nnUNetTrainer",
+    trainer_class_name: str = "nnUNetTrainerNoDeepSupervision",
     plans_identifier: str = "nnUNetPlans",
     pretrained_weights: Optional[str] = None,
     num_gpus: int = 1,
@@ -316,8 +316,8 @@ def run_training_entry():
         "-tr",
         type=str,
         required=False,
-        default="nnUNetTrainer",
-        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainer",
+        default="nnUNetTrainerNoDeepSupervision",
+        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainerNoDeepSupervision",
     )
     parser.add_argument(
         "-p",
