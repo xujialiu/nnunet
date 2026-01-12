@@ -1,7 +1,7 @@
 **/test_whatever*
 nnUNet_preprocessed
 nnUNet_raw
-nnUNet_results
+nnUNet_results*
 
 debugger*
 script.sh

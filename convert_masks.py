@@ -70,21 +70,21 @@ def parse_args():
         description="Convert segmentation masks to colorized images"
     )
     parser.add_argument(
-        "--src_path",
-        type=str,
-        help="Source directory containing mask files"
+        "--src_path", type=str, help="Source directory containing mask files"
     )
     parser.add_argument(
-        "-s", "--suffix",
+        "-s",
+        "--suffix",
         type=str,
         default=".png",
-        help="File suffix/extension to look for (default: .png)"
+        help="File suffix/extension to look for (default: .png)",
     )
     parser.add_argument(
-        "-d", "--dst_path",
+        "-d",
+        "--dst_path",
         type=str,
         default=None,
-        help="Output directory (default: src_path/../masks_converted)"
+        help="Output directory (default: src_path/../masks_converted)",
     )
     return parser.parse_args()
 
@@ -92,7 +92,5 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     batch_convert_masks(
-        src_path=args.src_path,
-        suffix=args.suffix,
-        dst_path=args.dst_path
+        src_path=args.src_path, suffix=args.suffix, dst_path=args.dst_path
     )

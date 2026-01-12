@@ -1,0 +1,20 @@
+{
+    "channel_names": {
+        "0": "R",
+        "1": "G",
+        "2": "B"
+    },
+    "labels": {
+        "background": 0,
+        "class_1": 1,
+        "class_2": 2,
+        "class_3": 3
+    },
+    "numTraining": 81,
+    "file_ending": ".png",
+    "name": "Dataset001_semantic_retina_vessel_segmentation",
+    "description": "Retina vessel segmentation dataset",
+    "reference": "",
+    "licence": "",
+    "release": "1.0"
+}
