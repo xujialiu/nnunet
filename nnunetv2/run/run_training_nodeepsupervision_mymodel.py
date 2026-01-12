@@ -1,3 +1,4 @@
+print("run_training_nodeepsupervision_mymodel.py")
 import multiprocessing
 import os
 import socket
@@ -12,11 +13,11 @@ from nnunetv2.paths import nnUNet_preprocessed
 from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
 
 # from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
-from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision import (
+from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision_mymodel import (
     nnUNetTrainer,
 )
 
-print("no deep supervision")
+print("no deep supervision mymodel")
 from nnunetv2.utilities.dataset_name_id_conversion import maybe_convert_to_dataset_name
 from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
 from torch.backends import cudnn
@@ -56,9 +57,9 @@ def get_trainer_from_args(
             f"{join(nnunetv2.__path__[0], 'training', 'nnUNetTrainer')}). If it is located somewhere "
             f"else, please move it there."
         )
-    assert issubclass(nnunet_trainer, nnUNetTrainer), (
-        "The requested nnunet trainer class must inherit from nnUNetTrainer"
-    )
+    # assert issubclass(nnunet_trainer, nnUNetTrainer), (
+    #     "The requested nnunet trainer class must inherit from nnUNetTrainer"
+    # )
 
     # handle dataset input. If it's an ID we need to convert to int from string
     if dataset_name_or_id.startswith("Dataset"):

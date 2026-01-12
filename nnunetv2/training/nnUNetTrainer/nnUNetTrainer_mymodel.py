@@ -1,3 +1,4 @@
+print("nnUNetTrainer_mymodel.py")
 import inspect
 import multiprocessing
 import os
@@ -318,6 +319,8 @@ class nnUNetTrainer(object):
                 self.network = DDP(self.network, device_ids=[self.local_rank])
 
             self.loss = self._build_loss()
+            breakpoint()
+            print("insert breakpoint")
 
             self.dataset_class = infer_dataset_class(self.preprocessed_dataset_folder)
 
@@ -524,6 +527,7 @@ class nnUNetTrainer(object):
             self.oversample_foreground_percent = oversample_percent
 
     def _build_loss(self):
+        breakpoint()
         if self.label_manager.has_regions:
             loss = DC_and_BCE_loss(
                 {},

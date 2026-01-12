@@ -1,3 +1,4 @@
+print("nnUNetTrainerNoDeepSupervision_mymodel.py")
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer_mymodel import nnUNetTrainer
 import torch
 
