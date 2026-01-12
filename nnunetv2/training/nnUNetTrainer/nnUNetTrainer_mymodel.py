@@ -105,7 +105,7 @@ from nnunetv2.utilities.label_handling.label_handling import (
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 
 
-class nnUNetTrainer(object):
+class nnUNetTrainer_mymodel(object):
     def __init__(
         self,
         plans: dict,
@@ -301,8 +301,12 @@ class nnUNetTrainer(object):
             # ).to(self.device)
             from nnunetv2.model.model import create_segmentation_model
 
-            self.network = create_segmentation_model(
-                num_classes=3, freeze_backbone=True
+            self.network = (
+                create_segmentation_model(
+                    num_classes=self.label_manager.num_segmentation_heads,
+                    freeze_backbone=True,
+                )
+                .to(self.device)
             )
 
             # compile network for free speedup
@@ -319,8 +323,6 @@ class nnUNetTrainer(object):
                 self.network = DDP(self.network, device_ids=[self.local_rank])
 
             self.loss = self._build_loss()
-            breakpoint()
-            print("insert breakpoint")
 
             self.dataset_class = infer_dataset_class(self.preprocessed_dataset_folder)
 
@@ -527,7 +529,6 @@ class nnUNetTrainer(object):
             self.oversample_foreground_percent = oversample_percent
 
     def _build_loss(self):
-        breakpoint()
         if self.label_manager.has_regions:
             loss = DC_and_BCE_loss(
                 {},

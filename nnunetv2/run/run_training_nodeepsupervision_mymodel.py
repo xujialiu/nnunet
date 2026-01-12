@@ -14,7 +14,7 @@ from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
 
 # from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision_mymodel import (
-    nnUNetTrainer,
+    nnUNetTrainerNoDeepSupervision_mymodel,
 )
 
 print("no deep supervision mymodel")
@@ -40,7 +40,7 @@ def get_trainer_from_args(
     dataset_name_or_id: Union[int, str],
     configuration: str,
     fold: int,
-    trainer_name: str = "nnUNetTrainer",
+    trainer_name: str = "nnUNetTrainerNoDeepSupervision_mymodel",
     plans_identifier: str = "nnUNetPlans",
     device: torch.device = torch.device("cuda"),
 ):
@@ -92,7 +92,7 @@ def get_trainer_from_args(
 
 
 def maybe_load_checkpoint(
-    nnunet_trainer: nnUNetTrainer,
+    nnunet_trainer: nnUNetTrainerNoDeepSupervision_mymodel,
     continue_training: bool,
     validation_only: bool,
     pretrained_weights_file: str = None,
@@ -199,7 +199,7 @@ def run_training(
     dataset_name_or_id: Union[str, int],
     configuration: str,
     fold: Union[int, str],
-    trainer_class_name: str = "nnUNetTrainer",
+    trainer_class_name: str = "nnUNetTrainerNoDeepSupervision_mymodel",
     plans_identifier: str = "nnUNetPlans",
     pretrained_weights: Optional[str] = None,
     num_gpus: int = 1,
@@ -317,8 +317,8 @@ def run_training_entry():
         "-tr",
         type=str,
         required=False,
-        default="nnUNetTrainer",
-        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainer",
+        default="nnUNetTrainerNoDeepSupervision_mymodel",
+        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainerNoDeepSupervision_mymodel",
     )
     parser.add_argument(
         "-p",

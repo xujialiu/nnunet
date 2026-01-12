@@ -1,9 +1,9 @@
 print("nnUNetTrainerNoDeepSupervision_mymodel.py")
-from nnunetv2.training.nnUNetTrainer.nnUNetTrainer_mymodel import nnUNetTrainer
+from nnunetv2.training.nnUNetTrainer.nnUNetTrainer_mymodel import nnUNetTrainer_mymodel
 import torch
 
 
-class nnUNetTrainerNoDeepSupervision(nnUNetTrainer):
+class nnUNetTrainerNoDeepSupervision_mymodel(nnUNetTrainer_mymodel):
     def __init__(
         self,
         plans: dict,
