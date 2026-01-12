@@ -1,6 +1,7 @@
 from pathlib import Path
 from skimage import io
 import numpy as np
+import argparse
 
 
 def mask_to_color(mask, color_map=None):
@@ -24,22 +25,25 @@ def mask_to_color(mask, color_map=None):
     return color_img
 
 
-def batch_convert_masks(src_path, suffix, color_map=None):
+def batch_convert_masks(src_path, suffix, dst_path=None, color_map=None):
     src_path = Path(src_path)
 
     # Ensure suffix starts with '.'
     if not suffix.startswith("."):
         suffix = "." + suffix
 
-    # Create output directory: src_path/../masks_converted
-    output_dir = src_path.parent / "masks_converted"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Create output directory: src_path/../masks_converted or user-specified
+    if dst_path is None:
+        dst_path = src_path.parent / "masks_converted"
+    else:
+        dst_path = Path(dst_path)
+    dst_path.mkdir(parents=True, exist_ok=True)
 
     # Find all files with the given suffix
     mask_files = sorted(src_path.glob(f"*{suffix}"))
 
     print(f"Found {len(mask_files)} files with suffix '{suffix}'")
-    print(f"Output directory: {output_dir}")
+    print(f"Output directory: {dst_path}")
     print("-" * 50)
 
     for mask_file in mask_files:
@@ -50,20 +54,45 @@ def batch_convert_masks(src_path, suffix, color_map=None):
         color_img = mask_to_color(mask, color_map)
 
         # Save to output directory with same filename
-        output_path = output_dir / mask_file.name
+        output_path = dst_path / mask_file.name
         io.imsave(output_path, color_img)
 
         print(f"Converted: {mask_file.name}")
 
     print("-" * 50)
-    print(f"Done! {len(mask_files)} files saved to: {output_dir}")
+    print(f"Done! {len(mask_files)} files saved to: {dst_path}")
 
-    return output_dir
+    return dst_path
 
 
-# Example usage
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Convert segmentation masks to colorized images"
+    )
+    parser.add_argument(
+        "--src_path",
+        type=str,
+        help="Source directory containing mask files"
+    )
+    parser.add_argument(
+        "-s", "--suffix",
+        type=str,
+        default=".png",
+        help="File suffix/extension to look for (default: .png)"
+    )
+    parser.add_argument(
+        "-d", "--dst_path",
+        type=str,
+        default=None,
+        help="Output directory (default: src_path/../masks_converted)"
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    src_path = "/data_B/xujialiu/projects/nnunet/nnUNet_results/Dataset000_semantic_retina_vessel_segmentation/nnUNetTrainer__nnUNetPlans__2d/fold_0/validation"
-
-    # Convert all .png files
-    batch_convert_masks(src_path, suffix=".png")
+    args = parse_args()
+    batch_convert_masks(
+        src_path=args.src_path,
+        suffix=args.suffix,
+        dst_path=args.dst_path
+    )
