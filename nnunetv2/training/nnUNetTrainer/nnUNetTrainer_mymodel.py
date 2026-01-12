@@ -301,13 +301,12 @@ class nnUNetTrainer_mymodel(object):
             # ).to(self.device)
             from nnunetv2.model.model import create_segmentation_model
 
-            self.network = (
-                create_segmentation_model(
-                    num_classes=self.label_manager.num_segmentation_heads,
-                    freeze_backbone=True,
-                )
-                .to(self.device)
-            )
+            self.network = create_segmentation_model(
+                num_classes=self.label_manager.num_segmentation_heads,
+                freeze_backbone=True,
+            ).to(self.device)
+
+            print(self.network)
 
             # compile network for free speedup
             if self._do_i_compile():

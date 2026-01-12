@@ -231,14 +231,6 @@ class ViTSegmentationModel(nn.Module):
                     num_classes=num_classes,
                     hidden_dim=embed_dim // 2,
                 )
-            else:
-                # UperNetHead outputs num_classes directly
-                upernet_config = UperNetConfig(
-                    hidden_size=embed_dim,
-                    num_labels=num_classes,
-                    pool_scales=[1, 2, 3, 6],
-                )
-                self.head = UperNetHead(upernet_config, in_channels)
         else:
             raise ValueError(f"Unknown head type: {head_type}. Choose from ['upernet']")
 
@@ -275,6 +267,65 @@ class ViTSegmentationModel(nn.Module):
                 )
 
         return output
+
+    def print_trainable_parameters(self, detailed: bool = False) -> None:
+        """Print the number of trainable parameters in the model.
+
+        Args:
+            detailed: If True, also print breakdown by component (backbone, head, decoder)
+        """
+
+        def count_params(module: nn.Module) -> Tuple[int, int]:
+            """Count trainable and total parameters in a module."""
+            trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
+            total = sum(p.numel() for p in module.parameters())
+            return trainable, total
+
+        trainable_params = 0
+        all_params = 0
+        for param in self.parameters():
+            all_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+
+        percentage = 100 * trainable_params / all_params if all_params > 0 else 0
+
+        print(
+            f"trainable params: {trainable_params:,} || "
+            f"all params: {all_params:,} || "
+            f"trainable%: {percentage:.2f}%"
+        )
+
+        if detailed:
+            print("-" * 60)
+            # Backbone
+            backbone_trainable, backbone_total = count_params(self.backbone)
+            backbone_pct = (
+                100 * backbone_trainable / backbone_total if backbone_total > 0 else 0
+            )
+            print(
+                f"  backbone:  {backbone_trainable:>12,} / {backbone_total:>12,} "
+                f"({backbone_pct:.2f}%)"
+            )
+
+            # Head
+            head_trainable, head_total = count_params(self.head)
+            head_pct = 100 * head_trainable / head_total if head_total > 0 else 0
+            print(
+                f"  head:      {head_trainable:>12,} / {head_total:>12,} "
+                f"({head_pct:.2f}%)"
+            )
+
+            # Decoder (if exists)
+            if hasattr(self, "decoder"):
+                decoder_trainable, decoder_total = count_params(self.decoder)
+                decoder_pct = (
+                    100 * decoder_trainable / decoder_total if decoder_total > 0 else 0
+                )
+                print(
+                    f"  decoder:   {decoder_trainable:>12,} / {decoder_total:>12,} "
+                    f"({decoder_pct:.2f}%)"
+                )
 
 
 def create_segmentation_model(
