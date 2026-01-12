@@ -93,6 +93,7 @@ class ProgressiveUpsampleDecoder(nn.Module):
 
     Upsamples through multiple stages (each 2x), with learned convolutions
     between stages to refine features and smooth patch boundaries.
+    Supports skip connections from backbone features for better detail preservation.
     """
 
     def __init__(
@@ -101,9 +102,23 @@ class ProgressiveUpsampleDecoder(nn.Module):
         num_classes: int,
         hidden_dim: Optional[int] = None,
         num_stages: int = 4,
+        dropout: float = 0.1,
+        backbone_channels: Optional[List[int]] = None,
     ):
+        """Initialize the progressive upsample decoder.
+
+        Args:
+            in_channels: Number of input channels from UperNet head
+            num_classes: Number of output segmentation classes
+            hidden_dim: Hidden dimension for decoder (auto-set if None)
+            num_stages: Number of upsampling stages
+            dropout: Dropout probability for regularization
+            backbone_channels: List of channel dims from backbone features for skip connections
+        """
         super().__init__()
         self.num_stages = num_stages
+        self.dropout = dropout
+        self.use_skip_connections = backbone_channels is not None
 
         if hidden_dim is None:
             hidden_dim = in_channels // 2
@@ -114,6 +129,22 @@ class ProgressiveUpsampleDecoder(nn.Module):
         for _ in range(num_stages):
             channels.append(max(current, 32))
             current = current // 2
+
+        # Skip connection projections (project backbone features to decoder channels)
+        # We use the last (num_stages - 1) backbone features as skip connections
+        if self.use_skip_connections and backbone_channels:
+            self.skip_projections = nn.ModuleList()
+            # Skip connections are used for stages 0 to num_stages-2
+            # backbone_channels is ordered shallow to deep, we reverse to match decoder order
+            reversed_backbone = list(reversed(backbone_channels))
+            for i in range(min(num_stages - 1, len(reversed_backbone))):
+                # Project backbone channels to match decoder stage output
+                self.skip_projections.append(
+                    nn.Conv2d(reversed_backbone[i], channels[i + 1], 1, bias=False)
+                )
+            # Pad with None if backbone has fewer features than decoder stages
+            while len(self.skip_projections) < num_stages - 1:
+                self.skip_projections.append(None)
 
         self.stages = nn.ModuleList()
         for i in range(num_stages):
@@ -134,25 +165,50 @@ class ProgressiveUpsampleDecoder(nn.Module):
             nn.Conv2d(in_ch, out_ch, 3, padding=1, bias=False),
             nn.GroupNorm(num_groups, out_ch),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(self.dropout),
             nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False),
             nn.GroupNorm(num_groups, out_ch),
             nn.ReLU(inplace=True),
         )
 
-    def forward(self, x: torch.Tensor, target_size: Tuple[int, int]) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        target_size: Tuple[int, int],
+        backbone_features: Optional[List[torch.Tensor]] = None,
+    ) -> torch.Tensor:
         """Progressive upsampling from patch resolution to target size.
 
         Args:
             x: Input tensor at patch resolution (B, C, H_patch, W_patch)
             target_size: Desired output size (H, W)
+            backbone_features: Optional list of backbone features for skip connections
+                              (ordered from shallow to deep layers)
 
         Returns:
             Segmentation logits at target resolution (B, num_classes, H, W)
         """
+        # Reverse backbone features so deepest is first (matches decoder order)
+        skip_features = None
+        if self.use_skip_connections and backbone_features is not None:
+            skip_features = list(reversed(backbone_features))
+
         # Progressive 2x upsampling for stages 0 to n-2
         for i in range(len(self.stages) - 1):
             x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
             x = self.stages[i](x)
+
+            # Add skip connection if available
+            if skip_features is not None and i < len(self.skip_projections):
+                skip_proj = self.skip_projections[i]
+                if skip_proj is not None and i < len(skip_features):
+                    skip_feat = skip_features[i]
+                    # Resize skip feature to match current decoder resolution
+                    skip_feat = F.interpolate(
+                        skip_feat, size=x.shape[-2:], mode="bilinear", align_corners=False
+                    )
+                    skip_feat = skip_proj(skip_feat)
+                    x = x + skip_feat
 
         # Final stage: upsample to exact target size (handles 14 vs 16 patch size)
         x = F.interpolate(x, size=target_size, mode="bilinear", align_corners=False)
@@ -183,11 +239,18 @@ class ViTSegmentationModel(nn.Module):
         checkpoint_path: Optional[str] = None,
         freeze_backbone: bool = False,
         use_progressive_upsample: bool = False,
+        decoder_dropout: float = 0.1,
+        use_lora: bool = False,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+        lora_dropout: float = 0.05,
+        lora_target_modules: Optional[List[str]] = None,
     ):
         super().__init__()
         self.head_type = head_type
         self.num_classes = num_classes
         self.use_progressive_upsample = use_progressive_upsample
+        self.decoder_dropout = decoder_dropout
 
         # Create backbone
         self.backbone, self.patch_size, _ = create_backbone(
@@ -230,7 +293,17 @@ class ViTSegmentationModel(nn.Module):
                     in_channels=embed_dim,
                     num_classes=num_classes,
                     hidden_dim=embed_dim // 2,
+                    dropout=decoder_dropout,
+                    backbone_channels=in_channels,  # For skip connections
                 )
+            else:
+                # Direct class prediction without progressive upsampling
+                upernet_config = UperNetConfig(
+                    hidden_size=embed_dim,
+                    num_labels=num_classes,  # Direct class prediction
+                    pool_scales=[1, 2, 3, 6],
+                )
+                self.head = UperNetHead(upernet_config, in_channels)
         else:
             raise ValueError(f"Unknown head type: {head_type}. Choose from ['upernet']")
 
@@ -238,6 +311,15 @@ class ViTSegmentationModel(nn.Module):
         if freeze_backbone:
             for param in self.backbone.parameters():
                 param.requires_grad = False
+
+        # Enable LoRA if requested
+        if use_lora:
+            self.enable_lora(
+                rank=lora_rank,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                target_modules=lora_target_modules,
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         input_size = x.shape[-2:]
@@ -250,12 +332,13 @@ class ViTSegmentationModel(nn.Module):
         )
 
         # Apply transformers UperNetHead (expects list of features)
-        output = self.head(list(features))
+        features_list = list(features)
+        output = self.head(features_list)
 
         # Upsample to input size
         if self.use_progressive_upsample:
-            # Use progressive decoder for smoother upsampling
-            output = self.decoder(output, input_size)
+            # Use progressive decoder for smoother upsampling with skip connections
+            output = self.decoder(output, input_size, backbone_features=features_list)
         else:
             # Simple bilinear upsampling
             if output.shape[-2:] != input_size:
@@ -327,6 +410,78 @@ class ViTSegmentationModel(nn.Module):
                     f"({decoder_pct:.2f}%)"
                 )
 
+    def enable_lora(
+        self,
+        rank: int = 8,
+        lora_alpha: float = 16.0,
+        lora_dropout: float = 0.05,
+        target_modules: Optional[List[str]] = None,
+    ) -> None:
+        """Enable LoRA (Low-Rank Adaptation) for efficient fine-tuning of the backbone.
+
+        This method wraps the backbone with LoRA adapters, significantly reducing
+        the number of trainable parameters while maintaining performance.
+
+        Args:
+            rank: LoRA rank (lower = fewer params, higher = more expressive)
+            lora_alpha: LoRA scaling factor (alpha/rank determines scaling)
+            lora_dropout: Dropout probability for LoRA layers
+            target_modules: List of module names to apply LoRA to.
+                           Default targets attention qkv projections.
+
+        Raises:
+            ImportError: If peft library is not installed
+        """
+        try:
+            from peft import LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "LoRA requires the 'peft' library. Install with: pip install peft"
+            )
+
+        # Default target modules for ViT attention layers
+        if target_modules is None:
+            target_modules = ["qkv"]
+
+        lora_config = LoraConfig(
+            r=rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=target_modules,
+            bias="none",
+        )
+
+        # Wrap backbone with LoRA
+        self.backbone = get_peft_model(self.backbone, lora_config)
+
+        # Ensure head and decoder remain trainable
+        for param in self.head.parameters():
+            param.requires_grad = True
+        if hasattr(self, "decoder"):
+            for param in self.decoder.parameters():
+                param.requires_grad = True
+
+        print(f"LoRA enabled with rank={rank}, alpha={lora_alpha}")
+        self.print_trainable_parameters(detailed=True)
+
+    def disable_lora(self) -> None:
+        """Disable LoRA and restore the original backbone.
+
+        Merges LoRA weights into the backbone and removes LoRA wrappers.
+        """
+        try:
+            from peft import PeftModel
+        except ImportError:
+            raise ImportError(
+                "LoRA requires the 'peft' library. Install with: pip install peft"
+            )
+
+        if isinstance(self.backbone, PeftModel):
+            self.backbone = self.backbone.merge_and_unload()
+            print("LoRA disabled and weights merged into backbone")
+        else:
+            print("LoRA is not enabled on this model")
+
 
 def create_segmentation_model(
     backbone_name: str = "dinov3",
@@ -337,6 +492,12 @@ def create_segmentation_model(
     checkpoint_path: Optional[str] = None,
     freeze_backbone: bool = False,
     use_progressive_upsample: bool = True,
+    decoder_dropout: float = 0.1,
+    use_lora: bool = False,
+    lora_rank: int = 8,
+    lora_alpha: float = 16.0,
+    lora_dropout: float = 0.05,
+    lora_target_modules: Optional[List[str]] = None,
 ) -> nn.Module:
     """Factory function to create segmentation models.
 
@@ -351,6 +512,12 @@ def create_segmentation_model(
         checkpoint_path: Path to pretrained backbone weights
         freeze_backbone: Whether to freeze backbone weights
         use_progressive_upsample: Use progressive upsampling decoder to eliminate patch artifacts
+        decoder_dropout: Dropout probability in progressive decoder (default: 0.1)
+        use_lora: Enable LoRA for efficient fine-tuning (requires peft library)
+        lora_rank: LoRA rank (lower = fewer params, higher = more expressive)
+        lora_alpha: LoRA scaling factor (alpha/rank determines scaling)
+        lora_dropout: Dropout probability for LoRA layers
+        lora_target_modules: List of module names to apply LoRA to (default: ["qkv"])
 
     Returns:
         Segmentation model ready for training
@@ -364,4 +531,10 @@ def create_segmentation_model(
         checkpoint_path=checkpoint_path,
         freeze_backbone=freeze_backbone,
         use_progressive_upsample=use_progressive_upsample,
+        decoder_dropout=decoder_dropout,
+        use_lora=use_lora,
+        lora_rank=lora_rank,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        lora_target_modules=lora_target_modules,
     )
