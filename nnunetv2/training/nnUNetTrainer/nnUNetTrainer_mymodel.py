@@ -291,14 +291,6 @@ class nnUNetTrainer_mymodel(object):
             )
 
             # TODO
-            # self.network = self.build_network_architecture(
-            #     self.configuration_manager.network_arch_class_name,
-            #     self.configuration_manager.network_arch_init_kwargs,
-            #     self.configuration_manager.network_arch_init_kwargs_req_import,
-            #     self.num_input_channels,
-            #     self.label_manager.num_segmentation_heads,
-            #     self.enable_deep_supervision,
-            # ).to(self.device)
             from nnunetv2.model.model import create_segmentation_model
 
             self.network = create_segmentation_model(
@@ -321,6 +313,7 @@ class nnUNetTrainer_mymodel(object):
                 )
                 self.network = DDP(self.network, device_ids=[self.local_rank])
 
+            # TODO
             self.loss = self._build_loss()
 
             self.dataset_class = infer_dataset_class(self.preprocessed_dataset_folder)

@@ -205,7 +205,10 @@ class ProgressiveUpsampleDecoder(nn.Module):
                     skip_feat = skip_features[i]
                     # Resize skip feature to match current decoder resolution
                     skip_feat = F.interpolate(
-                        skip_feat, size=x.shape[-2:], mode="bilinear", align_corners=False
+                        skip_feat,
+                        size=x.shape[-2:],
+                        mode="bilinear",
+                        align_corners=False,
                     )
                     skip_feat = skip_proj(skip_feat)
                     x = x + skip_feat
@@ -410,6 +413,104 @@ class ViTSegmentationModel(nn.Module):
                     f"({decoder_pct:.2f}%)"
                 )
 
+    def print_trainable_layers(
+        self,
+        show_shapes: bool = False,
+        group_by_component: bool = True,
+        show_frozen: bool = False,
+    ) -> None:
+        """Print all trainable layers in the model.
+
+        Args:
+            show_shapes: If True, also print parameter shapes and sizes
+            group_by_component: If True, group layers by component (backbone, head, decoder)
+            show_frozen: If True, also show frozen layers (marked with ❄)
+        """
+
+        def format_param(name: str, param: torch.nn.Parameter, trainable: bool) -> str:
+            """Format a single parameter line."""
+            status = "✓" if trainable else "❄"
+            if show_shapes:
+                shape_str = str(list(param.shape))
+                return f"  {status} {name}: {shape_str} ({param.numel():,} params)"
+            else:
+                return f"  {status} {name}"
+
+        def print_component_layers(
+            comp_name: str, component: nn.Module
+        ) -> Tuple[int, int]:
+            """Print layers for a component and return counts."""
+            trainable_layers = []
+            frozen_layers = []
+
+            for name, param in component.named_parameters():
+                if param.requires_grad:
+                    trainable_layers.append(format_param(name, param, trainable=True))
+                else:
+                    frozen_layers.append(format_param(name, param, trainable=False))
+
+            # Print header
+            total = len(trainable_layers) + len(frozen_layers)
+            print(f"\n{'=' * 60}")
+            print(
+                f"{comp_name.upper()}: {len(trainable_layers)}/{total} layers trainable"
+            )
+            print("=" * 60)
+
+            # Print trainable layers
+            if trainable_layers:
+                for layer in trainable_layers:
+                    print(layer)
+
+            # Print frozen layers if requested
+            if show_frozen and frozen_layers:
+                print(f"  --- Frozen ({len(frozen_layers)} layers) ---")
+                for layer in frozen_layers:
+                    print(layer)
+
+            return len(trainable_layers), len(frozen_layers)
+
+        if group_by_component:
+            components = [("backbone", self.backbone), ("head", self.head)]
+            if hasattr(self, "decoder"):
+                components.append(("decoder", self.decoder))
+
+            total_trainable = 0
+            total_frozen = 0
+
+            for comp_name, component in components:
+                trainable, frozen = print_component_layers(comp_name, component)
+                total_trainable += trainable
+                total_frozen += frozen
+
+            # Summary
+            print(f"\n{'=' * 60}")
+            print(f"SUMMARY: {total_trainable} trainable, {total_frozen} frozen layers")
+            print("=" * 60)
+
+        else:
+            print("\nTrainable Layers:")
+            print("=" * 60)
+
+            trainable_count = 0
+            frozen_count = 0
+
+            for name, param in self.named_parameters():
+                if param.requires_grad:
+                    print(format_param(name, param, trainable=True))
+                    trainable_count += 1
+                elif show_frozen:
+                    print(format_param(name, param, trainable=False))
+                    frozen_count += 1
+
+            print("=" * 60)
+            if show_frozen:
+                print(
+                    f"Total: {trainable_count} trainable, {frozen_count} frozen layers"
+                )
+            else:
+                print(f"Total: {trainable_count} trainable layers")
+
     def enable_lora(
         self,
         rank: int = 8,
@@ -463,6 +564,7 @@ class ViTSegmentationModel(nn.Module):
 
         print(f"LoRA enabled with rank={rank}, alpha={lora_alpha}")
         self.print_trainable_parameters(detailed=True)
+        self.print_trainable_layers()
 
     def disable_lora(self) -> None:
         """Disable LoRA and restore the original backbone.
@@ -493,7 +595,7 @@ def create_segmentation_model(
     freeze_backbone: bool = False,
     use_progressive_upsample: bool = True,
     decoder_dropout: float = 0.1,
-    use_lora: bool = False,
+    use_lora: bool = True,
     lora_rank: int = 8,
     lora_alpha: float = 16.0,
     lora_dropout: float = 0.05,

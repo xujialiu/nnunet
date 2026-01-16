@@ -114,8 +114,47 @@ Channel suffix: `{CASE_ID}_{CHANNEL_ID}.{FORMAT}` (e.g., `case_0001_0000.nii.gz`
 
 ## Custom Model Integration (Project Fork)
 
-This fork adds Vision Transformer integration:
+This fork adds Vision Transformer integration via `nnunetv2/model/model.py`:
 
-- `nnunetv2/model/model.py` - ViT backbone with UperNet decoder
-- Supports DINOv2, DINOv3, RetFound pretrained weights
-- Custom trainers: `nnUNetTrainer_mymodel`, `nnUNetTrainerNoDeepSupervision_mymodel`
+### ViTSegmentationModel Architecture
+```
+Vision Transformer Backbone (frozen or fine-tuned)
+         │
+         ├─ Extracts multi-level features from transformer blocks
+         │  (1/4, 1/8, 1/16, 1/32 resolution scales)
+         ▼
+    UperNetHead (HuggingFace transformers)
+         │
+         ├─ Multi-scale aggregation via ASPP pooling
+         ├─ Fuses features across all scales
+         ▼
+  ProgressiveUpsampleDecoder
+         │
+         ├─ Multi-stage 2x upsampling (eliminates patch artifacts)
+         ├─ Skip connections from backbone features
+         ├─ GroupNorm + ReLU + Dropout2d between stages
+         ▼
+    Final Conv (num_classes output)
+```
+
+### Supported Backbones
+- **DINOv3** (`facebook/dinov3*`) - Latest DINO with register tokens
+- **DINOv2** (`facebook/dinov2*`) - Self-supervised ViT
+- **RetFound** - Retina-specific pretrained foundation model
+- **VisionFM** - General vision foundation model
+
+### LoRA Fine-Tuning
+Enable with `use_lora=True` to wrap backbone with low-rank adapters:
+- Reduces trainable parameters from millions to thousands
+- Uses PEFT library for efficient adaptation
+- Configure via `lora_r`, `lora_alpha`, `lora_dropout` parameters
+
+### Parameter Inspection
+```python
+model.print_trainable_parameters()  # Total counts by component
+model.print_trainable_layers()      # Detailed layer-by-layer breakdown
+```
+
+### Custom Trainers
+- `nnUNetTrainer_mymodel` - Full ViT training with deep supervision
+- `nnUNetTrainerNoDeepSupervision_mymodel` - ViT without auxiliary losses

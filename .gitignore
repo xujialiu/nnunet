@@ -8,7 +8,7 @@ script.sh
 
 ln_*
 
-
+dinov3
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -6,8 +6,12 @@ All notable changes to this nnU-Net fork will be documented in this file.
 
 ### Added
 - Custom Vision Transformer model integration (`nnunetv2/model/model.py`)
-  - DINOv2, DINOv3, RetFound pretrained backbone support
-  - UperNet decoder head for segmentation
+  - DINOv2, DINOv3, RetFound, VisionFM pretrained backbone support
+  - UperNet decoder head for multi-scale aggregation
+  - ProgressiveUpsampleDecoder with skip connections
+  - LoRA fine-tuning support via PEFT library
+  - Dropout regularization throughout decoder
+  - Parameter inspection utilities (`print_trainable_parameters`, `print_trainable_layers`)
 - Custom trainer variants:
   - `nnUNetTrainer_mymodel` - ViT-based training
   - `nnUNetTrainerNoDeepSupervision_mymodel` - ViT without deep supervision
