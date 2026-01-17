@@ -11,7 +11,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from omegaconf import OmegaConf
 
-from nnunetv2.training.nnUNetTrainer.nnUNetTrainer_mymodel import nnUNetTrainer_mymodel
 from nnunetv2.training.nnUNetTrainer.m2f_config import M2FnnUNetConfig
 from nnunetv2.training.nnUNetTrainer.m2f_utils import (
     DenseToM2FTargetConverter,
@@ -55,7 +54,7 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
         super().__init__(plans, configuration, fold, dataset_json, device)
 
         ### Some hyperparameters for you to fiddle with
-        self.initial_lr = 1e-2
+        self.initial_lr = 1e-4
         self.weight_decay = 3e-5
         self.oversample_foreground_percent = 0.33
         self.probabilistic_oversampling = False
