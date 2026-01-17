@@ -1470,6 +1470,18 @@ class nnUNetTrainer(object):
             )
             self.save_checkpoint(join(self.output_folder, "checkpoint_best.pth"))
 
+            # Perform validation and save outputs for this best epoch
+            self.print_to_log_file(
+                f"Running validation for best epoch {self.current_epoch}..."
+            )
+            self.perform_actual_validation(
+                save_probabilities=True,
+                validation_folder_name=f"validation_{self.current_epoch}"
+            )
+            self.print_to_log_file(
+                f"Validation outputs saved to validation_{self.current_epoch}/"
+            )
+
         if self.local_rank == 0:
             self.logger.plot_progress_png(self.output_folder)
 
@@ -1549,7 +1561,7 @@ class nnUNetTrainer(object):
             if checkpoint["grad_scaler_state"] is not None:
                 self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state"])
 
-    def perform_actual_validation(self, save_probabilities: bool = False):
+    def perform_actual_validation(self, save_probabilities: bool = False, validation_folder_name: str = "validation"):
         self.set_deep_supervision_enabled(False)
         self.network.eval()
 
@@ -1594,7 +1606,7 @@ class nnUNetTrainer(object):
             default_num_processes
         ) as segmentation_export_pool:
             worker_list = [i for i in segmentation_export_pool._pool]
-            validation_output_folder = join(self.output_folder, "validation")
+            validation_output_folder = join(self.output_folder, validation_folder_name)
             maybe_mkdir_p(validation_output_folder)
 
             # we cannot use self.get_tr_and_val_datasets() here because we might be DDP and then we have to distribute
@@ -1638,7 +1650,7 @@ class nnUNetTrainer(object):
                         allowed_num_queued=2,
                     )
 
-                self.print_to_log_file(f"predicting {k}")
+                # self.print_to_log_file(f"predicting {k}")
                 data, _, seg_prev, properties = dataset_val.load_case(k)
 
                 # we do [:] to convert blosc2 to numpy
@@ -1661,9 +1673,9 @@ class nnUNetTrainer(object):
                     warnings.simplefilter("ignore")
                     data = torch.from_numpy(data)
 
-                self.print_to_log_file(
-                    f"{k}, shape {data.shape}, rank {self.local_rank}"
-                )
+                # self.print_to_log_file(
+                #     f"{k}, shape {data.shape}, rank {self.local_rank}"
+                # )
                 output_filename_truncated = join(validation_output_folder, k)
 
                 prediction = predictor.predict_sliding_window_return_logits(data)
