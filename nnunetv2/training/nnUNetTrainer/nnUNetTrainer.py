@@ -1258,7 +1258,7 @@ class nnUNetTrainer(object):
         # lrs are the same for all workers so we don't need to gather them in case of DDP training
         self.logger.log("lrs", self.optimizer.param_groups[0]["lr"], self.current_epoch)
 
-    def train_step(self, batch: dict) -> dict:
+    def train_step(self, batch: dict, step: int = 0) -> dict:
         data = batch["data"]
         target = batch["target"]
 
@@ -1292,7 +1292,13 @@ class nnUNetTrainer(object):
             l.backward()
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), 12)
             self.optimizer.step()
-        return {"loss": l.detach().cpu().numpy()}
+        loss_val = l.detach().cpu().numpy()
+        lr = self.optimizer.param_groups[0]["lr"]
+
+        self.print_to_log_file(
+            f"step {step}/{self.num_iterations_per_epoch}, loss: {loss_val:.4f}, lr: {lr:.6f}"
+        )
+        return {"loss": loss_val}
 
     def on_train_epoch_end(self, train_outputs: List[dict]):
         outputs = collate_outputs(train_outputs)
@@ -1477,7 +1483,7 @@ class nnUNetTrainer(object):
             )
             self.perform_actual_validation(
                 save_probabilities=True,
-                validation_folder_name=f"validation_{self.current_epoch}"
+                validation_folder_name=f"validation_{self.current_epoch}",
             )
             self.print_to_log_file(
                 f"Validation outputs saved to validation_{self.current_epoch}/"
@@ -1562,7 +1568,11 @@ class nnUNetTrainer(object):
             if checkpoint["grad_scaler_state"] is not None:
                 self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state"])
 
-    def perform_actual_validation(self, save_probabilities: bool = False, validation_folder_name: str = "validation"):
+    def perform_actual_validation(
+        self,
+        save_probabilities: bool = False,
+        validation_folder_name: str = "validation",
+    ):
         self.set_deep_supervision_enabled(False)
         self.network.eval()
 
@@ -1800,7 +1810,9 @@ class nnUNetTrainer(object):
             self.on_train_epoch_start()
             train_outputs = []
             for batch_id in range(self.num_iterations_per_epoch):
-                train_outputs.append(self.train_step(next(self.dataloader_train)))
+                train_outputs.append(
+                    self.train_step(next(self.dataloader_train), step=batch_id + 1)
+                )
             self.on_train_epoch_end(train_outputs)
 
             with torch.no_grad():

@@ -224,7 +224,7 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
         # No-op: M2F doesn't use the same deep supervision mechanism as U-Net
         pass
 
-    def train_step(self, batch: dict) -> dict:
+    def train_step(self, batch: dict, step: int = 0) -> dict:
         """Training step for M2F model."""
         data = batch["data"]
         target = batch["target"]
@@ -285,7 +285,13 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
             )
             self.optimizer.step()
 
-        return {"loss": loss_total.detach().cpu().numpy()}
+        loss_val = loss_total.detach().cpu().numpy()
+        lr = self.optimizer.param_groups[0]["lr"]
+
+        self.print_to_log_file(
+            f"step {step}/{self.num_iterations_per_epoch}, loss: {loss_val:.4f}, lr: {lr:.6f}"
+        )
+        return {"loss": loss_val}
 
     def validation_step(self, batch: dict) -> dict:
         """Validation step for M2F model."""
