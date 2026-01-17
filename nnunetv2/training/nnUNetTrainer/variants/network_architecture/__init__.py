@@ -1,0 +1,1 @@
+from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainer_m2f import nnUNetTrainer_m2f

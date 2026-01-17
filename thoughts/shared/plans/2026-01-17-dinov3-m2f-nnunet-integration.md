@@ -885,12 +885,12 @@ from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainer
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Script runs without import errors: `python nnUNetv2_train_m2f.py --help`
-- [ ] Script shows proper argument parser output:
+- [x] Script runs without import errors: `python nnUNetv2_train_m2f.py --help`
+- [x] Script shows proper argument parser output:
 ```bash
 python nnUNetv2_train_m2f.py --help 2>&1 | grep -q "dataset_name_or_id" && echo "OK"
 ```
-- [ ] Trainer can be found by nnUNet's trainer lookup (if using standard registration):
+- [x] Trainer can be found by nnUNet's trainer lookup (if using standard registration):
 ```bash
 python -c "
 # Test that the trainer can be imported via the standard mechanism
@@ -899,7 +899,7 @@ print(f'Trainer class: {nnUNetTrainer_m2f.__name__}')
 print('OK')
 "
 ```
-- [ ] Short training smoke test (5 iterations) on dummy data:
+- [x] Short training smoke test (5 iterations) on dummy data:
 ```bash
 python -c "
 import torch

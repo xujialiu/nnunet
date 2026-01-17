@@ -153,9 +153,11 @@ class nnUNetTrainer_mymodel(object):
         # loading and saving this class for continuing from checkpoint should not happen based on pickling. This
         # would also pickle the network etc. Bad, bad. Instead we just reinstantiate and then load the checkpoint we
         # need. So let's save the init args
+        # Note: use .get() to handle subclasses with additional init parameters
         self.my_init_kwargs = {}
+        local_vars = locals()
         for k in inspect.signature(self.__init__).parameters.keys():
-            self.my_init_kwargs[k] = locals()[k]
+            self.my_init_kwargs[k] = local_vars.get(k)
 
         ###  Saving all the init args into class variables for later access
         self.plans_manager = PlansManager(plans)

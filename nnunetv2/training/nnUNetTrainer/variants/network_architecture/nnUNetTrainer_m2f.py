@@ -20,9 +20,9 @@ from nnunetv2.training.nnUNetTrainer.m2f_utils import (
 from nnunetv2.utilities.helpers import dummy_context
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn
 from nnunetv2.training.dataloading.nnunet_dataset import infer_dataset_class
+from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
-
-class nnUNetTrainer_m2f(nnUNetTrainer_mymodel):
+class nnUNetTrainer_m2f(nnUNetTrainer):
     """nnUNet trainer with DINOv3 Mask2Former decoder.
 
     This trainer replaces the UperNet head with Mask2Former for
@@ -52,6 +52,9 @@ class nnUNetTrainer_m2f(nnUNetTrainer_mymodel):
         self._m2f_config_path = m2f_config_path
 
         super().__init__(plans, configuration, fold, dataset_json, device)
+
+        # Add m2f_config_path to my_init_kwargs (parent uses inspect.signature on child class)
+        self.my_init_kwargs["m2f_config_path"] = m2f_config_path
 
         # Load M2F config
         self.m2f_config = self._load_m2f_config(m2f_config_path)
@@ -195,7 +198,17 @@ class nnUNetTrainer_m2f(nnUNetTrainer_mymodel):
             no_object_coefficient=cfg.no_object_coefficient,
         )
 
-        return loss
+        # Move loss to device (contains CrossEntropyLoss with class weights)
+        return loss.to(self.device)
+
+    def set_deep_supervision_enabled(self, enabled: bool):
+        """Override for M2F architecture.
+
+        M2F handles deep supervision internally via aux_outputs from the
+        transformer decoder, so we don't need to set anything on the network.
+        """
+        # No-op: M2F doesn't use the same deep supervision mechanism as U-Net
+        pass
 
     def train_step(self, batch: dict) -> dict:
         """Training step for M2F model."""
@@ -305,7 +318,7 @@ class nnUNetTrainer_m2f(nnUNetTrainer_mymodel):
         axes = [0] + list(range(2, output.ndim))
 
         if self.label_manager.has_regions:
-            predicted_segmentation_onehot = (torch.sigmoid(output) > 0.5).long()
+            predicted_segmentation_onehot = (torch.sigmoid(output) > 0.5).float()
         else:
             output_seg = output.argmax(1)[:, None]
             predicted_segmentation_onehot = torch.zeros(
@@ -323,10 +336,11 @@ class nnUNetTrainer_m2f(nnUNetTrainer_mymodel):
             target_for_metrics = target
 
         # Convert target to one-hot for metric computation
+        # Use torch.bool dtype for compatibility with get_tp_fp_fn_tn (~y_onehot)
         if target_for_metrics.dim() == 4:
             target_for_metrics = target_for_metrics.squeeze(1)  # [B, H, W]
         target_onehot = torch.zeros(
-            output.shape, device=output.device, dtype=torch.float32
+            output.shape, device=output.device, dtype=torch.bool
         )
         target_onehot.scatter_(1, target_for_metrics.unsqueeze(1).long(), 1)
 
