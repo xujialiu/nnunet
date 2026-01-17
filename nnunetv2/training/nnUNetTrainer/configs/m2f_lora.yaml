@@ -7,7 +7,7 @@ model:
   autocast_dtype: "float32"
 
 lora:
-  enabled: true
+  enabled: false
   r: 8
   lora_alpha: 16
   target_modules:
