@@ -1,0 +1,29 @@
+# Default M2F configuration for nnUNet
+model:
+  backbone: "dinov3"
+  backbone_size: "large"
+  hidden_dim: 2048
+  backbone_out_layers: "FOUR_EVEN_INTERVALS"
+  autocast_dtype: "float32"
+
+lora:
+  enabled: true
+  r: 8
+  lora_alpha: 16
+  target_modules:
+    - qkv
+    - proj
+  lora_dropout: 0.1
+  bias: none
+  use_rslora: false
+
+m2f_train:
+  num_points: 12544
+  oversample_ratio: 3.0
+  importance_sample_ratio: 0.75
+  mask_coefficient: 5.0
+  dice_coefficient: 5.0
+  class_coefficient: 2.0
+  no_object_coefficient: 0.1
+
+gradient_clip: 10.0
