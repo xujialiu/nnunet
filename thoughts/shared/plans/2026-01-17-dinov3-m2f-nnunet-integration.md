@@ -1040,12 +1040,12 @@ if __name__ == "__main__":
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Unit tests pass: `python -m pytest nnunetv2/tests/integration_tests/test_m2f_trainer.py -v`
-- [ ] All individual test functions pass:
+- [x] Unit tests pass: `python -m pytest nnunetv2/tests/integration_tests/test_m2f_trainer.py -v`
+- [x] All individual test functions pass:
 ```bash
 python nnunetv2/tests/integration_tests/test_m2f_trainer.py && echo "OK"
 ```
-- [ ] Validation step produces valid metrics:
+- [x] Validation step produces valid metrics:
 ```bash
 python -c "
 import torch
@@ -1100,7 +1100,7 @@ print(f'Mean Dice: {dice[1:].mean():.4f}')  # Exclude background
 print('OK')
 "
 ```
-- [ ] Memory usage is reasonable (no OOM on 256x256 with batch=1):
+- [x] Memory usage is reasonable (no OOM on 256x256 with batch=1):
 ```bash
 python -c "
 import torch

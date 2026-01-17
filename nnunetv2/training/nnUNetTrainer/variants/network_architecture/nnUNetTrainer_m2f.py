@@ -22,6 +22,7 @@ from nnunetv2.training.loss.dice import get_tp_fp_fn_tn
 from nnunetv2.training.dataloading.nnunet_dataset import infer_dataset_class
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
+
 class nnUNetTrainer_m2f(nnUNetTrainer):
     """nnUNet trainer with DINOv3 Mask2Former decoder.
 
@@ -53,14 +54,22 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
 
         super().__init__(plans, configuration, fold, dataset_json, device)
 
+        ### Some hyperparameters for you to fiddle with
+        self.initial_lr = 1e-2
+        self.weight_decay = 3e-5
+        self.oversample_foreground_percent = 0.33
+        self.probabilistic_oversampling = False
+        self.num_iterations_per_epoch = 250
+        self.num_val_iterations_per_epoch = 50
+        self.num_epochs = 1000
+        self.current_epoch = 0
+        self.enable_deep_supervision = False  # Disable deep supervision (M2F handles it internally via aux_outputs)
+
         # Add m2f_config_path to my_init_kwargs (parent uses inspect.signature on child class)
         self.my_init_kwargs["m2f_config_path"] = m2f_config_path
 
         # Load M2F config
         self.m2f_config = self._load_m2f_config(m2f_config_path)
-
-        # Disable deep supervision (M2F handles it internally via aux_outputs)
-        self.enable_deep_supervision = False
 
         # Target converter will be initialized after we know ignore_label
         self._target_converter = None
@@ -74,7 +83,9 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
             config = OmegaConf.merge(base_config, yaml_config)
         else:
             # Try default config location
-            default_path = Path(__file__).parent.parent.parent / "configs" / "m2f_default.yaml"
+            default_path = (
+                Path(__file__).parent.parent.parent / "configs" / "m2f_default.yaml"
+            )
             if default_path.exists():
                 yaml_config = OmegaConf.load(default_path)
                 config = OmegaConf.merge(base_config, yaml_config)
@@ -112,7 +123,9 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
 
             # DDP wrapping
             if self.is_ddp:
-                self.network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.network)
+                self.network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(
+                    self.network
+                )
                 self.network = DDP(self.network, device_ids=[self.local_rank])
 
             # Build M2F loss
@@ -182,7 +195,9 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
 
     def _build_loss(self):
         """Build MaskClassificationLoss for M2F."""
-        from dinov3.eval.segmentation.mask_classification_loss import MaskClassificationLoss
+        from dinov3.eval.segmentation.mask_classification_loss import (
+            MaskClassificationLoss,
+        )
 
         num_classes = self.label_manager.num_segmentation_heads
         cfg = self.m2f_config.m2f_train
@@ -260,16 +275,14 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
             self.grad_scaler.scale(loss_total).backward()
             self.grad_scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(
-                self.network.parameters(),
-                self.m2f_config.gradient_clip
+                self.network.parameters(), self.m2f_config.gradient_clip
             )
             self.grad_scaler.step(self.optimizer)
             self.grad_scaler.update()
         else:
             loss_total.backward()
             torch.nn.utils.clip_grad_norm_(
-                self.network.parameters(),
-                self.m2f_config.gradient_clip
+                self.network.parameters(), self.m2f_config.gradient_clip
             )
             self.optimizer.step()
 
