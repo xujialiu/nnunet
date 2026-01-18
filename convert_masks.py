@@ -1,7 +1,8 @@
+import argparse
 from pathlib import Path
+
 from skimage import io
 import numpy as np
-import argparse
 
 
 def mask_to_color(mask, color_map=None):
@@ -25,72 +26,71 @@ def mask_to_color(mask, color_map=None):
     return color_img
 
 
-def batch_convert_masks(src_path, suffix, dst_path=None, color_map=None):
-    src_path = Path(src_path)
+def convert_images(src_root: str, dst_root: str = None) -> None:
+    """
+    Find all JPG and PNG images in src_root, invert colors,
+    and save to dst_root preserving directory structure.
+    """
+    src_path = Path(src_root)
 
-    # Ensure suffix starts with '.'
-    if not suffix.startswith("."):
-        suffix = "." + suffix
-
-    # Create output directory: src_path/../masks_converted or user-specified
-    if dst_path is None:
-        dst_path = src_path.parent / "masks_converted"
+    if dst_root:
+        dst_path = Path(dst_root)
     else:
-        dst_path = Path(dst_path)
-    dst_path.mkdir(parents=True, exist_ok=True)
+        dst_path = src_path.parent / f"{src_path.name}_converted"
 
-    # Find all files with the given suffix
-    mask_files = sorted(src_path.glob(f"*{suffix}"))
+    # Find all jpg and png files (case-insensitive)
+    extensions = (".jpg", ".jpeg", ".png")
+    image_files = [f for f in src_path.rglob("*") if f.suffix.lower() in extensions]
 
-    print(f"Found {len(mask_files)} files with suffix '{suffix}'")
-    print(f"Output directory: {dst_path}")
-    print("-" * 50)
+    print(f"Found {len(image_files)} images")
 
-    for mask_file in mask_files:
-        # Read mask
-        mask = io.imread(mask_file)
+    for img_file in image_files:
+        # Build destination path (preserve directory structure)
+        relative_path = img_file.relative_to(src_path)
+        dst_file = dst_path / relative_path
 
-        # Convert to color
-        color_img = mask_to_color(mask, color_map)
+        # Skip if destination already exists
+        if dst_file.exists():
+            print(f"Skipping {img_file.name}: destination already exists")
+            continue
 
-        # Save to output directory with same filename
-        output_path = dst_path / mask_file.name
-        io.imsave(output_path, color_img)
+        # Read image
+        img = io.imread(img_file)
 
-        print(f"Converted: {mask_file.name}")
+        # Skip non-mask images (e.g., progress.png, RGB/RGBA images)
+        if img.ndim == 3:
+            print(f"Skipping {img_file.name}: not a grayscale mask (shape={img.shape})")
+            continue
 
-    print("-" * 50)
-    print(f"Done! {len(mask_files)} files saved to: {dst_path}")
+        try:
+            converted_img = mask_to_color(img)
+        except Exception as e:
+            print(f"Error processing {img_file}: {e}")
+            continue
 
-    return dst_path
+        # Create destination directory if needed
+        dst_file.parent.mkdir(parents=True, exist_ok=True)
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Convert segmentation masks to colorized images"
-    )
-    parser.add_argument(
-        "--src_path", type=str, help="Source directory containing mask files"
-    )
-    parser.add_argument(
-        "-s",
-        "--suffix",
-        type=str,
-        default=".png",
-        help="File suffix/extension to look for (default: .png)",
-    )
-    parser.add_argument(
-        "-d",
-        "--dst_path",
-        type=str,
-        default=None,
-        help="Output directory (default: src_path/../masks_converted)",
-    )
-    return parser.parse_args()
+        # Save image
+        io.imsave(dst_file, converted_img)
+        print(f"Saved: {dst_file}")
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    batch_convert_masks(
-        src_path=args.src_path, suffix=args.suffix, dst_path=args.dst_path
+    parser = argparse.ArgumentParser(
+        description="Convert segmentation masks to color images"
     )
+    parser.add_argument(
+        "src_folder",
+        type=str,
+        help="Source folder containing mask images",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default=None,
+        help="Output folder (default: <src_folder>_converted)",
+    )
+
+    args = parser.parse_args()
+    convert_images(args.src_folder, args.output)
