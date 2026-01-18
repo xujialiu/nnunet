@@ -120,6 +120,36 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
 
         return OmegaConf.to_object(config)
 
+    def _log_trainable_parameters(self) -> None:
+        """Log all trainable parameters with their names and shapes to the log file."""
+        trainable_params = []
+        frozen_params = []
+
+        for name, param in self.network.named_parameters():
+            if param.requires_grad:
+                trainable_params.append((name, param.numel(), tuple(param.shape)))
+            else:
+                frozen_params.append((name, param.numel()))
+
+        total_trainable = sum(p[1] for p in trainable_params)
+        total_frozen = sum(p[1] for p in frozen_params)
+        total_params = total_trainable + total_frozen
+
+        self.print_to_log_file("=" * 60)
+        self.print_to_log_file("TRAINABLE PARAMETERS:")
+        self.print_to_log_file("=" * 60)
+        for name, numel, shape in trainable_params:
+            self.print_to_log_file(f"  {name}: {shape} ({numel:,} params)")
+        self.print_to_log_file("-" * 60)
+        self.print_to_log_file(
+            f"Total trainable: {total_trainable:,} ({100 * total_trainable / total_params:.2f}%)"
+        )
+        self.print_to_log_file(
+            f"Total frozen: {total_frozen:,} ({100 * total_frozen / total_params:.2f}%)"
+        )
+        self.print_to_log_file(f"Total parameters: {total_params:,}")
+        self.print_to_log_file("=" * 60)
+
     @property
     def target_converter(self) -> DenseToM2FTargetConverter:
         """Lazy initialization of target converter."""
@@ -138,7 +168,10 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
             # Build M2F model
             self.network = self._build_m2f_network().to(self.device)
 
-            print(self.network)
+            self.print_to_log_file(self.network)
+
+            # Log trainable parameters to the log file
+            self._log_trainable_parameters()
 
             # Optional torch.compile
             if self._do_i_compile():
