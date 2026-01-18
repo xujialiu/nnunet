@@ -21,9 +21,9 @@ m2f_train:
   num_points: 16384
   oversample_ratio: 3.0
   importance_sample_ratio: 0.75
-  mask_coefficient: 0.5
+  mask_coefficient: 5.0
   dice_coefficient: 10.0
-  class_coefficient: 0.1
-  no_object_coefficient: 0.01
+  class_coefficient: 1.0
+  no_object_coefficient: 0.1
 
 gradient_clip: 10.0

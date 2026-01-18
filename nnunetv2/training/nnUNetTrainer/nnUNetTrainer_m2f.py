@@ -81,7 +81,7 @@ class nnUNetTrainer_m2f(nnUNetTrainer):
         super().__init__(plans, configuration, fold, dataset_json, device)
 
         ### Some hyperparameters for you to fiddle with
-        self.initial_lr = 1e-4
+        self.initial_lr = 1e-3
         self.weight_decay = 3e-5
         self.oversample_foreground_percent = 0.33
         self.probabilistic_oversampling = False

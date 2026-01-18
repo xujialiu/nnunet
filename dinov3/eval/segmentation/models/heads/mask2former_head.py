@@ -61,7 +61,7 @@ class Mask2FormerHead(nn.Module):
             mask_classification=True,
             num_classes=num_classes,
             hidden_dim=hidden_dim,
-            num_queries=100,
+            num_queries=20,
             nheads=16,
             dim_feedforward=4096,
             dec_layers=9,
