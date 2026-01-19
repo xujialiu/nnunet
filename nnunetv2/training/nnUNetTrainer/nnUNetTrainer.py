@@ -280,6 +280,36 @@ class nnUNetTrainer(object):
             add_timestamp=False,
         )
 
+    def _log_trainable_parameters(self) -> None:
+        """Log all trainable parameters with their names and shapes to the log file."""
+        trainable_params = []
+        frozen_params = []
+
+        for name, param in self.network.named_parameters():
+            if param.requires_grad:
+                trainable_params.append((name, param.numel(), tuple(param.shape)))
+            else:
+                frozen_params.append((name, param.numel()))
+
+        total_trainable = sum(p[1] for p in trainable_params)
+        total_frozen = sum(p[1] for p in frozen_params)
+        total_params = total_trainable + total_frozen
+
+        self.print_to_log_file("=" * 60)
+        self.print_to_log_file("TRAINABLE PARAMETERS:")
+        self.print_to_log_file("=" * 60)
+        for name, numel, shape in trainable_params:
+            self.print_to_log_file(f"  {name}: {shape} ({numel:,} params)")
+        self.print_to_log_file("-" * 60)
+        self.print_to_log_file(
+            f"Total trainable: {total_trainable:,} ({100 * total_trainable / total_params:.2f}%)"
+        )
+        self.print_to_log_file(
+            f"Total frozen: {total_frozen:,} ({100 * total_frozen / total_params:.2f}%)"
+        )
+        self.print_to_log_file(f"Total parameters: {total_params:,}")
+        self.print_to_log_file("=" * 60)
+
     def initialize(self):
         if not self.was_initialized:
             ## DDP batch size and oversampling can differ between workers and needs adaptation
@@ -298,6 +328,9 @@ class nnUNetTrainer(object):
                 self.label_manager.num_segmentation_heads,
                 self.enable_deep_supervision,
             ).to(self.device)
+            
+            self._log_trainable_parameters()
+            
             # compile network for free speedup
             if self._do_i_compile():
                 self.print_to_log_file("Using torch.compile...")
