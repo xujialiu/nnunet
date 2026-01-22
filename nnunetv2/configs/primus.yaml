@@ -1,0 +1,33 @@
+# Primus configuration for nnUNet integration
+# Architecture: https://arxiv.org/pdf/2503.01835
+
+model:
+  model_path: "nnunetv2.model.primus"
+  backbone: "dinov3"
+  backbone_size: "large"
+  checkpoint_path: ""
+  decoder:
+    multiscale: false
+    embed_dim: 768
+    patch_embed_size: 16
+    # embed_dim: 512        # Optional: decoder embedding dimension
+                            # If not set, uses backbone's embed_dim (1024 for large ViT)
+                            # If set differently, a projection layer is added
+    # patch_embed_size: 16  # Optional: patch size for decoder upsampling
+                            # Must be power of 2 (2, 4, 8, 16, 32)
+                            # If not set, uses backbone's patch_size (16 for dinov3, 14 for dinov2)
+
+lora:
+  enabled: false
+  r: 8
+  lora_alpha: 16
+  target_modules: ["qkv"]
+  lora_dropout: 0.05
+
+train:
+  initial_lr: 0.001
+  weight_decay: 0.00003
+  gradient_clip: 12.0
+  num_epochs: 500
+  num_iterations_per_epoch: 100
+  num_val_iterations_per_epoch: 50
