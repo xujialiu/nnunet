@@ -1,10 +1,12 @@
 # SegFormer default configuration for nnUNet integration
 
 model:
+  model_path: "nnunetv2.model.model_segformer_1"
   backbone: "dinov3"
   backbone_size: "large"
-  decoder_hidden_size: 256
   checkpoint_path: ""
+  decoder:
+    hidden_size: 256
 
 lora:
   enabled: false
@@ -17,3 +19,6 @@ train:
   initial_lr: 0.001
   weight_decay: 0.00003
   gradient_clip: 12.0
+  num_epochs: 500           # Custom: train for 500 epochs                                                                                                                             
+  num_iterations_per_epoch: 100   # Custom: 100 training batches/epoch                                                                                                                 
+  num_val_iterations_per_epoch: 20  # Custom: 20 validation batches/epoch   

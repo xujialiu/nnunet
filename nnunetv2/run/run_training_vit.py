@@ -1,4 +1,4 @@
-"""Run module for SegFormer training in nnUNet."""
+"""Run module for ViT-based segmentation training in nnUNet."""
 
 import multiprocessing
 import os
@@ -13,8 +13,8 @@ from batchgenerators.utilities.file_and_folder_operations import join, isfile, l
 from nnunetv2.paths import nnUNet_preprocessed
 from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
 
-from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision_segformer import (
-    nnUNetTrainerNoDeepSupervision_segformer,
+from nnunetv2.training.nnUNetTrainer.variants.network_architecture.nnUNetTrainerNoDeepSupervision_vit import (
+    nnUNetTrainerNoDeepSupervision_vit,
 )
 
 from nnunetv2.utilities.dataset_name_id_conversion import maybe_convert_to_dataset_name
@@ -35,10 +35,10 @@ def get_trainer_from_args(
     dataset_name_or_id: Union[int, str],
     configuration: str,
     fold: int,
-    trainer_name: str = "nnUNetTrainerNoDeepSupervision_segformer",
+    trainer_name: str = "nnUNetTrainerNoDeepSupervision_vit",
     plans_identifier: str = "nnUNetPlans",
     device: torch.device = torch.device("cuda"),
-    segformer_config_path: Optional[str] = None,
+    config_path: Optional[str] = None,
 ):
     # load nnunet class and do sanity checks
     nnunet_trainer = recursive_find_python_class(
@@ -75,20 +75,20 @@ def get_trainer_from_args(
     plans = load_json(plans_file)
     dataset_json = load_json(join(preprocessed_dataset_folder_base, "dataset.json"))
 
-    # Pass segformer_config_path to trainer
+    # Pass config_path to trainer
     nnunet_trainer = nnunet_trainer(
         plans=plans,
         configuration=configuration,
         fold=fold,
         dataset_json=dataset_json,
         device=device,
-        segformer_config_path=segformer_config_path,
+        config_path=config_path,
     )
     return nnunet_trainer
 
 
 def maybe_load_checkpoint(
-    nnunet_trainer: nnUNetTrainerNoDeepSupervision_segformer,
+    nnunet_trainer: nnUNetTrainerNoDeepSupervision_vit,
     continue_training: bool,
     validation_only: bool,
     pretrained_weights_file: str = None,
@@ -161,14 +161,14 @@ def run_ddp(
     npz,
     val_with_best,
     world_size,
-    segformer_config_path,
+    config_path,
 ):
     setup_ddp(rank, world_size)
     torch.cuda.set_device(torch.device("cuda", dist.get_rank()))
 
     nnunet_trainer = get_trainer_from_args(
         dataset_name_or_id, configuration, fold, tr, p,
-        segformer_config_path=segformer_config_path,
+        config_path=config_path,
     )
 
     if disable_checkpointing:
@@ -197,7 +197,7 @@ def run_training(
     dataset_name_or_id: Union[str, int],
     configuration: str,
     fold: Union[int, str],
-    trainer_class_name: str = "nnUNetTrainerNoDeepSupervision_segformer",
+    trainer_class_name: str = "nnUNetTrainerNoDeepSupervision_vit",
     plans_identifier: str = "nnUNetPlans",
     pretrained_weights: Optional[str] = None,
     num_gpus: int = 1,
@@ -207,7 +207,7 @@ def run_training(
     disable_checkpointing: bool = False,
     val_with_best: bool = False,
     device: torch.device = torch.device("cuda"),
-    segformer_config_path: Optional[str] = None,
+    config_path: Optional[str] = None,
 ):
     if plans_identifier == "nnUNetPlans":
         print(
@@ -258,7 +258,7 @@ def run_training(
                 export_validation_probabilities,
                 val_with_best,
                 num_gpus,
-                segformer_config_path,
+                config_path,
             ),
             nprocs=num_gpus,
             join=True,
@@ -271,7 +271,7 @@ def run_training(
             trainer_class_name,
             plans_identifier,
             device=device,
-            segformer_config_path=segformer_config_path,
+            config_path=config_path,
         )
 
         if disable_checkpointing:
@@ -318,8 +318,8 @@ def run_training_entry():
         "-tr",
         type=str,
         required=False,
-        default="nnUNetTrainerNoDeepSupervision_segformer",
-        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainerNoDeepSupervision_segformer",
+        default="nnUNetTrainerNoDeepSupervision_vit",
+        help="[OPTIONAL] Use this flag to specify a custom trainer. Default: nnUNetTrainerNoDeepSupervision_vit",
     )
     parser.add_argument(
         "-p",
@@ -344,11 +344,11 @@ def run_training_entry():
         help="Specify the number of GPUs to use for training",
     )
     parser.add_argument(
-        "--segformer_config",
+        "--config",
         type=str,
         required=False,
         default=None,
-        help="[OPTIONAL] Path to SegFormer YAML configuration file. If not provided, uses default config.",
+        help="[OPTIONAL] Path to ViT YAML configuration file. If not provided, uses default config.",
     )
     parser.add_argument(
         "--npz",
@@ -425,7 +425,7 @@ def run_training_entry():
         args.disable_checkpointing,
         args.val_best,
         device=device,
-        segformer_config_path=args.segformer_config,
+        config_path=args.config,
     )
 
 

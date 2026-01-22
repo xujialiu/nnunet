@@ -1,88 +1,15 @@
-from typing import Tuple, Optional, List, Union
+from typing import Tuple, Optional, List
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import timm
 from transformers import SegformerConfig
 from transformers.models.segformer.modeling_segformer import SegformerDecodeHead
 
+from nnunetv2.model.backbone import create_backbone, get_vit_features
 
-def create_backbone(
-    model_name: str = "dinov3",
-    model_size: str = "large",
-    checkpoint_path: Optional[str] = None,
-) -> Tuple[torch.nn.Module, int, str]:
-    model_configs = {
-        # timm.model.eva
-        "dinov3": {
-            "timm_name": f"vit_{model_size}_patch16_dinov3.lvd1689m",
-            "patch_size": 16,
-            "pretrained": True,
-        },
-        "dinov2": {
-            "timm_name": f"vit_{model_size}_patch14_dinov2.lvd142m",
-            "patch_size": 14,
-            "pretrained": True,
-        },
-        "retfound": {
-            "timm_name": "vit_large_patch16_224.mae",
-            "patch_size": 16,
-            "pretrained": False,
-        },
-        "visionfm": {
-            "timm_name": "vit_base_patch16_224.mae",
-            "patch_size": 16,
-            "pretrained": False,
-        },
-    }
-
-    if model_name not in model_configs:
-        raise ValueError(
-            f"Unknown model: {model_name}. Choose from {list(model_configs.keys())}"
-        )
-
-    config = model_configs[model_name]
-
-    model = timm.create_model(
-        config["timm_name"],
-        pretrained=config["pretrained"],
-        dynamic_img_size=True,
-    )
-
-    if checkpoint_path is not None:
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-        msg = model.load_state_dict(checkpoint["model"], strict=False)
-        print(f"Loaded checkpoint: {msg}")
-
-    return model, config["patch_size"], model_name
-
-
-def get_vit_features(
-    model: torch.nn.Module,
-    input_tensor: torch.Tensor,
-    indices: Optional[Union[int, List[int]]] = None,
-) -> List[torch.Tensor]:
-    if hasattr(model, "get_intermediate_layers"):
-        feats = model.get_intermediate_layers(
-            input_tensor,
-            n=indices,
-            reshape=True,
-            norm=True,
-        )
-    elif hasattr(model, "forward_intermediates"):
-        _, feats = model.forward_intermediates(
-            input_tensor,
-            indices=indices,
-            norm=True,
-            output_fmt="NCHW",
-            return_prefix_tokens=False,
-        )
-    else:
-        raise RuntimeError("Model does not support feature extraction")
-
-    return feats
+print("model_segformer_0.py")
 
 
 # ===================== SegFormer Segmentation Model =====================
@@ -296,11 +223,10 @@ class SegFormerSegmentationModel(nn.Module):
             print("LoRA is not enabled on this model")
 
 
-def create_segformer_model(
+def create_segmentation_model(
     backbone_name: str = "dinov3",
     backbone_size: str = "large",
     num_classes: int = 1,
-    decoder_hidden_size: int = 256,
     checkpoint_path: Optional[str] = None,
     freeze_backbone: bool = False,
     use_lora: bool = True,
@@ -308,6 +234,9 @@ def create_segformer_model(
     lora_alpha: float = 16.0,
     lora_dropout: float = 0.05,
     lora_target_modules: Optional[List[str]] = None,
+    # Decoder-specific kwargs
+    hidden_size: int = 256,
+    **kwargs,  # Ignore unknown decoder params for forward compatibility
 ) -> nn.Module:
     """Factory function to create SegFormer segmentation models.
 
@@ -315,7 +244,6 @@ def create_segformer_model(
         backbone_name: One of "dinov3", "dinov2", "retfound", "visionfm"
         backbone_size: "base" or "large"
         num_classes: Number of segmentation classes
-        decoder_hidden_size: Hidden dimension for SegFormer decoder (default: 256)
         checkpoint_path: Path to pretrained backbone weights
         freeze_backbone: Whether to freeze backbone weights
         use_lora: Enable LoRA for efficient fine-tuning
@@ -323,15 +251,20 @@ def create_segformer_model(
         lora_alpha: LoRA scaling factor
         lora_dropout: Dropout probability for LoRA layers
         lora_target_modules: Module names to apply LoRA to (default: ["qkv"])
+        hidden_size: Hidden dimension for SegFormer decoder (default: 256)
+        **kwargs: Additional decoder params (ignored for this model)
 
     Returns:
         SegFormer segmentation model ready for training
     """
+    if kwargs:
+        print(f"Warning: Ignoring unknown decoder params: {list(kwargs.keys())}")
+
     return SegFormerSegmentationModel(
         backbone_name=backbone_name,
         backbone_size=backbone_size,
         num_classes=num_classes,
-        decoder_hidden_size=decoder_hidden_size,
+        decoder_hidden_size=hidden_size,
         checkpoint_path=checkpoint_path,
         freeze_backbone=freeze_backbone,
         use_lora=use_lora,
@@ -340,3 +273,7 @@ def create_segformer_model(
         lora_dropout=lora_dropout,
         lora_target_modules=lora_target_modules,
     )
+
+
+# Backward compatibility alias
+# create_segformer_model = create_segmentation_model
