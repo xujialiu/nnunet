@@ -25,7 +25,7 @@ lora:
   r: 8
   lora_alpha: 16
   target_modules: ["qkv"]
-  lora_dropout: 0.05
+  # lora_dropout: 0.05
 
 train:
   initial_lr: 0.001
