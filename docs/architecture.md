@@ -16,12 +16,14 @@ Extensible inheritance pattern for customization:
 
 ```
 nnUNetTrainer (base)
+├── nnUNetTrainer_vit (config-driven ViT - recommended)
+├── nnUNetTrainer_mymodel (legacy ViT model)
+├── nnUNetTrainer_m2f (Mask2Former decoder)
 ├── nnUNetTrainerNoDeepSupervision
 ├── nnUNetTrainerBN (batch norm)
 ├── nnUNetTrainerCELoss
 ├── nnUNetTrainerDA5 (custom augmentation)
-├── nnUNetTrainer_mymodel (custom ViT model)
-└── ... (17+ variants)
+└── ... (30+ variants in variants/)
 ```
 
 **Extension pattern**: Override specific methods to modify behavior:
@@ -114,21 +116,30 @@ Channel suffix: `{CASE_ID}_{CHANNEL_ID}.{FORMAT}` (e.g., `case_0001_0000.nii.gz`
 
 ## Custom Model Integration (Project Fork)
 
-This fork adds Vision Transformer integration via `nnunetv2/model/model.py`:
+This fork adds Vision Transformer integration via `nnunetv2/model/`:
 
-### ViTSegmentationModel Architecture
+### Model Architectures
+
+| Model | File | Decoder | Use Case |
+|-------|------|---------|----------|
+| `ViTSegmentationModel` | `model.py` | UperNet | Multi-scale with ASPP |
+| `SegFormerSegmentationModel` | `model_segformer_*.py` | SegFormer MLP | Lightweight, fast |
+| `PrimusSegmentationModel` | `primus.py` | Patch Decode | Simple, direct |
+| `PrimusMultiscaleSegmentationModel` | `primus.py` | Multi-layer Patch | Simple + multi-scale |
+
+### General Architecture Pattern
 ```
 Vision Transformer Backbone (frozen or fine-tuned)
          │
          ├─ Extracts multi-level features from transformer blocks
-         │  (1/4, 1/8, 1/16, 1/32 resolution scales)
+         │  (layers [2,5,8,11] for 12-layer ViT)
+         │  (layers [5,11,17,23] for 24-layer ViT)
          ▼
-    UperNetHead (HuggingFace transformers)
+    [Decoder Head] (UperNet | SegFormer | PatchDecode)
          │
-         ├─ Multi-scale aggregation via ASPP pooling
-         ├─ Fuses features across all scales
+         ├─ Multi-scale aggregation (varies by decoder)
          ▼
-  ProgressiveUpsampleDecoder
+  ProgressiveUpsampleDecoder (for UperNet/SegFormer)
          │
          ├─ Multi-stage 2x upsampling (eliminates patch artifacts)
          ├─ Skip connections from backbone features
@@ -138,10 +149,45 @@ Vision Transformer Backbone (frozen or fine-tuned)
 ```
 
 ### Supported Backbones
-- **DINOv3** (`facebook/dinov3*`) - Latest DINO with register tokens
-- **DINOv2** (`facebook/dinov2*`) - Self-supervised ViT
-- **RetFound** - Retina-specific pretrained foundation model
-- **VisionFM** - General vision foundation model
+
+| Backbone | Patch Size | Model ID Pattern |
+|----------|------------|------------------|
+| DINOv3 | 16 | `vit_{size}_patch16_dinov3.lvd1689m` |
+| DINOv2 | 14 | `vit_{size}_patch14_dinov2.lvd142m` |
+| RetFound | 16 | Retina-specific |
+| VisionFM | 16 | General vision |
+
+**Note**: DINOv2 requires input padding due to patch_size=14. Handled automatically in models.
+
+### YAML Configuration System
+
+Models are configured via YAML files in `nnunetv2/configs/`:
+
+```yaml
+model:
+  model_path: "nnunetv2.model.model_segformer_1"  # Dynamic module loading
+  backbone: "dinov3"
+  backbone_size: "large"
+  decoder:
+    hidden_size: 256
+
+lora:
+  enabled: true
+  r: 8
+  lora_alpha: 16
+  target_modules: ["qkv"]
+
+train:
+  initial_lr: 0.001
+  weight_decay: 0.00003
+  num_epochs: 500
+```
+
+Configuration classes in `nnunetv2/training/nnUNetTrainer/vit_config.py`:
+- `ViTModelConfig` - Model architecture parameters
+- `ViTLoRAConfig` - LoRA adapter settings
+- `ViTTrainConfig` - Training hyperparameters
+- `ViTnnUNetConfig` - Root config combining all
 
 ### LoRA Fine-Tuning
 Enable with `use_lora=True` to wrap backbone with low-rank adapters:
@@ -156,5 +202,7 @@ model.print_trainable_layers()      # Detailed layer-by-layer breakdown
 ```
 
 ### Custom Trainers
-- `nnUNetTrainer_mymodel` - Full ViT training with deep supervision
-- `nnUNetTrainerNoDeepSupervision_mymodel` - ViT without auxiliary losses
+- `nnUNetTrainer_vit` - Config-driven ViT (recommended)
+- `nnUNetTrainer_mymodel` - Legacy ViT training with deep supervision
+- `nnUNetTrainerNoDeepSupervision_mymodel` - Legacy ViT without auxiliary losses
+- `nnUNetTrainer_m2f` - Mask2Former decoder training
