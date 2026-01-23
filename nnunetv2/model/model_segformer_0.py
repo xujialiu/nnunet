@@ -47,7 +47,7 @@ class SegFormerSegmentationModel(nn.Module):
         self.decoder_hidden_size = decoder_hidden_size
 
         # Create backbone
-        self.backbone, self.patch_size, _ = create_backbone(
+        self.backbone, self.backbone_patch_size, _ = create_backbone(
             model_name=backbone_name,
             model_size=backbone_size,
             checkpoint_path=checkpoint_path,
@@ -96,7 +96,17 @@ class SegFormerSegmentationModel(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        input_size = x.shape[-2:]
+        # Save original size for cropping
+        _, _, h, w = x.shape
+
+        # Pad input to be divisible by backbone patch size (e.g., 14 for DINOv2)
+        ps = self.backbone_patch_size
+        pad_h = (ps - h % ps) % ps
+        pad_w = (ps - w % ps) % ps
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+
+        padded_size = x.shape[-2:]
 
         # Extract multi-level features from ViT
         features = get_vit_features(
@@ -112,14 +122,18 @@ class SegFormerSegmentationModel(nn.Module):
         # Output is at H/4 x W/4 resolution
         logits = self.decode_head(features_list)
 
-        # Upsample to input resolution
-        if logits.shape[-2:] != input_size:
+        # Upsample to padded resolution
+        if logits.shape[-2:] != padded_size:
             logits = F.interpolate(
                 logits,
-                size=input_size,
+                size=padded_size,
                 mode="bilinear",
                 align_corners=False,
             )
+
+        # Crop to original size
+        if pad_h > 0 or pad_w > 0:
+            logits = logits[:, :, :h, :w]
 
         return logits
 

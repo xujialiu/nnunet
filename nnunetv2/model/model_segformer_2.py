@@ -47,7 +47,7 @@ class SegFormerSegmentationModel(nn.Module):
         self.decoder_hidden_size = decoder_hidden_size
 
         # Create backbone
-        self.backbone, self.patch_size, _ = create_backbone(
+        self.backbone, self.backbone_patch_size, _ = create_backbone(
             model_name=backbone_name,
             model_size=backbone_size,
             checkpoint_path=checkpoint_path,
@@ -96,7 +96,17 @@ class SegFormerSegmentationModel(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        input_size = x.shape[-2:]
+        # Save original size for cropping
+        _, _, h, w = x.shape
+
+        # Pad input to be divisible by backbone patch size (e.g., 14 for DINOv2)
+        ps = self.backbone_patch_size
+        pad_h = (ps - h % ps) % ps
+        pad_w = (ps - w % ps) % ps
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+
+        padded_size = x.shape[-2:]
 
         # Extract multi-level features from ViT
         features = get_vit_features(
@@ -105,15 +115,19 @@ class SegFormerSegmentationModel(nn.Module):
             indices=self.feature_indices,
         )
 
-        # Upsample all features to full resolution before decode head
-        # This makes decode_head output at H x W directly
+        # Upsample all features to padded resolution before decode head
+        # This makes decode_head output at padded H x W directly
         features_list = [
-            F.interpolate(feat, size=input_size, mode="bilinear", align_corners=False)
+            F.interpolate(feat, size=padded_size, mode="bilinear", align_corners=False)
             for feat in features
         ]
 
-        # Apply SegFormer decode head - now outputs at H x W
+        # Apply SegFormer decode head - outputs at padded H x W
         logits = self.decode_head(features_list)
+
+        # Crop to original size
+        if pad_h > 0 or pad_w > 0:
+            logits = logits[:, :, :h, :w]
 
         return logits
 

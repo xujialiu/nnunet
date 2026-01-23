@@ -112,6 +112,9 @@ class PrimusSegmentationModel(nn.Module):
             checkpoint_path=checkpoint_path,
         )
 
+        # Store backbone patch size for input padding (needed for DINOv2 with patch_size=14)
+        self.backbone_patch_size = backbone_patch_size
+
         # Use specified patch_embed_size or default to backbone's patch_size
         self.patch_size = patch_embed_size if patch_embed_size is not None else backbone_patch_size
 
@@ -159,6 +162,14 @@ class PrimusSegmentationModel(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Pad input to be divisible by backbone patch size (e.g., 14 for DINOv2)
+        _, _, h, w = x.shape
+        ps = self.backbone_patch_size
+        pad_h = (ps - h % ps) % ps
+        pad_w = (ps - w % ps) % ps
+        if pad_h > 0 or pad_w > 0:
+            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+
         # Extract features from the last layer
         feats = get_vit_features(self.backbone, x, indices=1)
         x = feats[0]
@@ -169,6 +180,11 @@ class PrimusSegmentationModel(nn.Module):
 
         # Decode to original resolution
         dec_out = self.up_projection(x)
+
+        # Crop back to original size if padded
+        if pad_h > 0 or pad_w > 0:
+            dec_out = dec_out[:, :, :h, :w]
+
         return dec_out
 
     def print_trainable_parameters(self, detailed: bool = False) -> None:
@@ -343,6 +359,9 @@ class PrimusMultiscaleSegmentationModel(nn.Module):
             checkpoint_path=checkpoint_path,
         )
 
+        # Store backbone patch size for input padding (needed for DINOv2 with patch_size=14)
+        self.backbone_patch_size = backbone_patch_size
+
         # Use specified patch_embed_size or default to backbone's patch_size
         self.patch_size = patch_embed_size if patch_embed_size is not None else backbone_patch_size
 
@@ -411,6 +430,14 @@ class PrimusMultiscaleSegmentationModel(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Pad input to be divisible by backbone patch size (e.g., 14 for DINOv2)
+        _, _, h, w = x.shape
+        ps = self.backbone_patch_size
+        pad_h = (ps - h % ps) % ps
+        pad_w = (ps - w % ps) % ps
+        if pad_h > 0 or pad_w > 0:
+            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+
         # Extract multi-scale features
         feats = get_vit_features(self.backbone, x, indices=self.interaction_indices)
 
@@ -423,6 +450,11 @@ class PrimusMultiscaleSegmentationModel(nn.Module):
 
         # Decode to original resolution
         dec_out = self.up_projection(hier)
+
+        # Crop back to original size if padded
+        if pad_h > 0 or pad_w > 0:
+            dec_out = dec_out[:, :, :h, :w]
+
         return dec_out
 
     def print_trainable_parameters(self, detailed: bool = False) -> None:
