@@ -1,0 +1,27 @@
+# UperNet configuration for nnUNet integration
+# Architecture: https://arxiv.org/abs/1807.10221
+# Uses Pyramid Pooling Module (PPM) and Feature Pyramid Network (FPN)
+
+model:
+  model_path: "nnunetv2.model.model_upernet"
+  backbone: "dinov2"
+  backbone_size: "large"
+  checkpoint_path: ""
+  decoder:
+    hidden_size: 512
+    pool_scales: [1, 2, 3, 6]
+
+lora:
+  enabled: false
+  r: 8
+  lora_alpha: 16
+  target_modules: ["qkv"]
+  # lora_dropout: 0.05
+
+train:
+  initial_lr: 0.001
+  weight_decay: 0.00003
+  gradient_clip: 12.0
+  num_epochs: 1
+  num_iterations_per_epoch: 10
+  num_val_iterations_per_epoch: 10
