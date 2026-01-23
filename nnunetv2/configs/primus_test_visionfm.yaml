@@ -3,9 +3,9 @@
 
 model:
   model_path: "nnunetv2.model.primus"
-  backbone: "dinov3"
+  backbone: "visionfm"
   backbone_size: "large"
-  checkpoint_path: ""
+  checkpoint_path: "/data_B/xujialiu/checkpoints/my_VFM_Fundus_weights.pth"
   decoder:
     multiscale: false
     embed_dim: 768
@@ -18,11 +18,11 @@ model:
                             # If not set, uses backbone's patch_size (16 for dinov3, 14 for dinov2)
 
 lora:
-  enabled: true
+  enabled: false
   r: 8
   lora_alpha: 16
   target_modules: ["qkv"]
-  lora_dropout: 0.05
+  # lora_dropout: 0.05
 
 train:
   initial_lr: 0.001
