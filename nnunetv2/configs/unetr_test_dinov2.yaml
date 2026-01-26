@@ -1,0 +1,26 @@
+# UNETR configuration for nnUNet ViT integration
+# Based on: Hatamizadeh et al. "UNETR: Transformers for 3D Medical Image Segmentation"
+
+model:
+  model_path: "nnunetv2.model.model_unetr"
+  backbone: "dinov2"
+  backbone_size: "large"
+  checkpoint_path: ""
+  decoder:
+    decoder_channels: [512, 256, 128, 64, 32]
+    negative_slope: 0.01
+
+lora:
+  enabled: false
+  r: 8
+  lora_alpha: 16
+  target_modules: ["qkv"]
+  lora_dropout: 0.05
+
+train:
+  initial_lr: 0.001
+  weight_decay: 0.00003
+  gradient_clip: 12.0
+  num_epochs: 1000
+  num_iterations_per_epoch: 10
+  num_val_iterations_per_epoch: 10
