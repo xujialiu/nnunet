@@ -167,3 +167,92 @@ class UNETREncoder(nn.Module):
         skip1 = self.z1_blocks(z1)       # H
 
         return skip1, skip2, skip3, bottleneck
+
+
+class UNETRDecoder(nn.Module):
+    """U-Net style decoder with skip connections.
+
+    Progressively upsamples and merges with skip connections:
+    bottleneck (H/8) -> merge skip3 (H/4) -> merge skip2 (H/2) -> merge skip1 (H) -> logits
+    """
+
+    def __init__(
+        self,
+        decoder_channels: List[int],
+        num_classes: int,
+        negative_slope: float = 0.01,
+    ):
+        """
+        Args:
+            decoder_channels: Channel dimensions [c0, c1, c2, c3, c4] from deep to shallow
+                             e.g., [512, 256, 128, 64, 32]
+            num_classes: Number of output segmentation classes
+            negative_slope: LeakyReLU negative slope
+        """
+        super().__init__()
+
+        # Stage 4: bottleneck (c0) + skip3 (c1) -> upsample -> conv -> c1
+        self.up4 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+        self.conv4 = ConvBlock(
+            decoder_channels[0] + decoder_channels[1],  # concat channels
+            decoder_channels[1],
+            negative_slope,
+        )
+
+        # Stage 3: c1 + skip2 (c2) -> upsample -> conv -> c2
+        self.up3 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+        self.conv3 = ConvBlock(
+            decoder_channels[1] + decoder_channels[2],
+            decoder_channels[2],
+            negative_slope,
+        )
+
+        # Stage 2: c2 + skip1 (c3) -> upsample -> conv -> c3
+        self.up2 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+        self.conv2 = ConvBlock(
+            decoder_channels[2] + decoder_channels[3],
+            decoder_channels[3],
+            negative_slope,
+        )
+
+        # Stage 1: c3 -> conv -> c4 -> 1x1 conv -> num_classes
+        self.conv1 = ConvBlock(decoder_channels[3], decoder_channels[4], negative_slope)
+        self.seg_head = nn.Conv2d(decoder_channels[4], num_classes, kernel_size=1)
+
+    def forward(
+        self,
+        skip1: torch.Tensor,
+        skip2: torch.Tensor,
+        skip3: torch.Tensor,
+        bottleneck: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Args:
+            skip1: Skip connection at full resolution (B, c3, H, W)
+            skip2: Skip connection at 1/2 resolution (B, c2, H/2, W/2)
+            skip3: Skip connection at 1/4 resolution (B, c1, H/4, W/4)
+            bottleneck: Bottleneck features at 1/8 resolution (B, c0, H/8, W/8)
+
+        Returns:
+            Segmentation logits (B, num_classes, H, W)
+        """
+        # Stage 4: upsample bottleneck and merge with skip3
+        x = self.up4(bottleneck)
+        x = torch.cat([x, skip3], dim=1)
+        x = self.conv4(x)
+
+        # Stage 3: upsample and merge with skip2
+        x = self.up3(x)
+        x = torch.cat([x, skip2], dim=1)
+        x = self.conv3(x)
+
+        # Stage 2: upsample and merge with skip1
+        x = self.up2(x)
+        x = torch.cat([x, skip1], dim=1)
+        x = self.conv2(x)
+
+        # Stage 1: final conv and segmentation head
+        x = self.conv1(x)
+        logits = self.seg_head(x)
+
+        return logits
