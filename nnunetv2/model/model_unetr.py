@@ -473,3 +473,59 @@ class UNETRSegmentationModel(nn.Module):
             print("LoRA disabled and weights merged into backbone")
         else:
             print("LoRA is not enabled on this model")
+
+
+def create_segmentation_model(
+    backbone_name: str = "dinov3",
+    backbone_size: str = "large",
+    num_classes: int = 1,
+    checkpoint_path: Optional[str] = None,
+    freeze_backbone: bool = False,
+    use_lora: bool = True,
+    lora_rank: int = 8,
+    lora_alpha: float = 16.0,
+    lora_dropout: float = 0.05,
+    lora_target_modules: Optional[List[str]] = None,
+    # UNETR-specific decoder params
+    decoder_channels: Optional[List[int]] = None,
+    negative_slope: float = 0.01,
+    **kwargs,
+) -> nn.Module:
+    """Factory function to create UNETR segmentation models.
+
+    Args:
+        backbone_name: One of "dinov3", "dinov2", "retfound", "visionfm"
+        backbone_size: "base" or "large"
+        num_classes: Number of segmentation classes
+        checkpoint_path: Path to pretrained backbone weights
+        freeze_backbone: Whether to freeze backbone weights
+        use_lora: Enable LoRA for efficient fine-tuning
+        lora_rank: LoRA rank
+        lora_alpha: LoRA scaling factor
+        lora_dropout: Dropout probability for LoRA layers
+        lora_target_modules: Module names to apply LoRA to (default: ["qkv"])
+        decoder_channels: Channel dimensions for decoder [c0, c1, c2, c3, c4]
+                         Default: [512, 256, 128, 64, 32]
+        negative_slope: LeakyReLU negative slope (default: 0.01)
+        **kwargs: Additional params (ignored for forward compatibility)
+
+    Returns:
+        UNETR segmentation model ready for training
+    """
+    if kwargs:
+        print(f"Warning: Ignoring unknown decoder params: {list(kwargs.keys())}")
+
+    return UNETRSegmentationModel(
+        backbone_name=backbone_name,
+        backbone_size=backbone_size,
+        num_classes=num_classes,
+        decoder_channels=decoder_channels,
+        negative_slope=negative_slope,
+        checkpoint_path=checkpoint_path,
+        freeze_backbone=freeze_backbone,
+        use_lora=use_lora,
+        lora_rank=lora_rank,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        lora_target_modules=lora_target_modules,
+    )
