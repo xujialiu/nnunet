@@ -345,19 +345,6 @@ class UNETRSegmentationModel(nn.Module):
                 target_modules=lora_target_modules,
             )
 
-    def enable_lora(
-        self,
-        rank: int = 8,
-        lora_alpha: float = 16.0,
-        lora_dropout: float = 0.05,
-        target_modules: Optional[List[str]] = None,
-    ) -> None:
-        """Enable LoRA fine-tuning on the backbone.
-
-        Will be implemented in Task 6.
-        """
-        raise NotImplementedError("LoRA support will be added in Task 6")
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Save original size for cropping
         _, _, h, w = x.shape
@@ -387,3 +374,102 @@ class UNETRSegmentationModel(nn.Module):
             logits = logits[:, :, :h, :w]
 
         return logits
+
+    def print_trainable_parameters(self, detailed: bool = False) -> None:
+        """Print the number of trainable parameters in the model."""
+
+        def count_params(module: nn.Module) -> Tuple[int, int]:
+            trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
+            total = sum(p.numel() for p in module.parameters())
+            return trainable, total
+
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        all_params = sum(p.numel() for p in self.parameters())
+        percentage = 100 * trainable_params / all_params if all_params > 0 else 0
+
+        print(
+            f"trainable params: {trainable_params:,} || "
+            f"all params: {all_params:,} || "
+            f"trainable%: {percentage:.2f}%"
+        )
+
+        if detailed:
+            print("-" * 60)
+            backbone_trainable, backbone_total = count_params(self.backbone)
+            backbone_pct = (
+                100 * backbone_trainable / backbone_total if backbone_total > 0 else 0
+            )
+            print(
+                f"  backbone:  {backbone_trainable:>12,} / {backbone_total:>12,} "
+                f"({backbone_pct:.2f}%)"
+            )
+
+            encoder_trainable, encoder_total = count_params(self.encoder)
+            encoder_pct = (
+                100 * encoder_trainable / encoder_total if encoder_total > 0 else 0
+            )
+            print(
+                f"  encoder:   {encoder_trainable:>12,} / {encoder_total:>12,} "
+                f"({encoder_pct:.2f}%)"
+            )
+
+            decoder_trainable, decoder_total = count_params(self.decoder)
+            decoder_pct = (
+                100 * decoder_trainable / decoder_total if decoder_total > 0 else 0
+            )
+            print(
+                f"  decoder:   {decoder_trainable:>12,} / {decoder_total:>12,} "
+                f"({decoder_pct:.2f}%)"
+            )
+
+    def enable_lora(
+        self,
+        rank: int = 8,
+        lora_alpha: float = 16.0,
+        lora_dropout: float = 0.05,
+        target_modules: Optional[List[str]] = None,
+    ) -> None:
+        """Enable LoRA for efficient fine-tuning of the backbone."""
+        try:
+            from peft import LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "LoRA requires the 'peft' library. Install with: pip install peft"
+            )
+
+        if target_modules is None:
+            target_modules = ["qkv"]
+
+        lora_config = LoraConfig(
+            r=rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=target_modules,
+            bias="none",
+        )
+
+        self.backbone = get_peft_model(self.backbone, lora_config)
+
+        # Ensure encoder and decoder remain trainable
+        for param in self.encoder.parameters():
+            param.requires_grad = True
+        for param in self.decoder.parameters():
+            param.requires_grad = True
+
+        print(f"LoRA enabled with rank={rank}, alpha={lora_alpha}")
+        self.print_trainable_parameters(detailed=True)
+
+    def disable_lora(self) -> None:
+        """Disable LoRA and merge weights into backbone."""
+        try:
+            from peft import PeftModel
+        except ImportError:
+            raise ImportError(
+                "LoRA requires the 'peft' library. Install with: pip install peft"
+            )
+
+        if isinstance(self.backbone, PeftModel):
+            self.backbone = self.backbone.merge_and_unload()
+            print("LoRA disabled and weights merged into backbone")
+        else:
+            print("LoRA is not enabled on this model")
