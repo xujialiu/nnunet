@@ -50,3 +50,47 @@ class DeconvBlock(nn.Module):
         x = self.norm(x)
         x = self.act(x)
         return x
+
+
+class ConvBlock(nn.Module):
+    """Double convolution block for decoder.
+
+    Structure: (Conv2d -> GroupNorm -> LeakyReLU) x2
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        negative_slope: float = 0.01,
+    ):
+        super().__init__()
+        num_groups = self._get_num_groups(out_channels)
+
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, padding=1, bias=False
+        )
+        self.norm1 = nn.GroupNorm(num_groups, out_channels)
+        self.act1 = nn.LeakyReLU(negative_slope=negative_slope, inplace=True)
+
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1, bias=False
+        )
+        self.norm2 = nn.GroupNorm(num_groups, out_channels)
+        self.act2 = nn.LeakyReLU(negative_slope=negative_slope, inplace=True)
+
+    def _get_num_groups(self, num_channels: int) -> int:
+        """Get largest divisor of num_channels that's <= 8."""
+        for g in [8, 4, 2, 1]:
+            if num_channels % g == 0:
+                return g
+        return 1
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.act1(x)
+        x = self.conv2(x)
+        x = self.norm2(x)
+        x = self.act2(x)
+        return x
