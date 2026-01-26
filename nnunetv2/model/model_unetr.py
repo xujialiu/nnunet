@@ -181,6 +181,7 @@ class UNETRDecoder(nn.Module):
         decoder_channels: List[int],
         num_classes: int,
         negative_slope: float = 0.01,
+        upsample_mode: str = "deconv",
     ):
         """
         Args:
@@ -188,36 +189,53 @@ class UNETRDecoder(nn.Module):
                              e.g., [512, 256, 128, 64, 32]
             num_classes: Number of output segmentation classes
             negative_slope: LeakyReLU negative slope
+            upsample_mode: "deconv" (learnable) or "bilinear" (fixed interpolation)
         """
         super().__init__()
+        self.upsample_mode = upsample_mode
+
+        # Calculate concat channels based on upsample mode
+        # deconv: upsample changes channels, so concat = out_ch + skip_ch
+        # bilinear: upsample keeps channels, so concat = in_ch + skip_ch
+        if upsample_mode == "deconv":
+            concat4 = decoder_channels[1] + decoder_channels[1]  # up4_out + skip3
+            concat3 = decoder_channels[2] + decoder_channels[2]  # up3_out + skip2
+            concat2 = decoder_channels[3] + decoder_channels[3]  # up2_out + skip1
+        else:
+            concat4 = decoder_channels[0] + decoder_channels[1]  # bottleneck + skip3
+            concat3 = decoder_channels[1] + decoder_channels[2]  # conv4_out + skip2
+            concat2 = decoder_channels[2] + decoder_channels[3]  # conv3_out + skip1
 
         # Stage 4: bottleneck (c0) + skip3 (c1) -> upsample -> conv -> c1
-        self.up4 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
-        self.conv4 = ConvBlock(
-            decoder_channels[0] + decoder_channels[1],  # concat channels
-            decoder_channels[1],
-            negative_slope,
-        )
+        self.up4 = self._make_upsample(decoder_channels[0], decoder_channels[1])
+        self.conv4 = ConvBlock(concat4, decoder_channels[1], negative_slope)
 
         # Stage 3: c1 + skip2 (c2) -> upsample -> conv -> c2
-        self.up3 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
-        self.conv3 = ConvBlock(
-            decoder_channels[1] + decoder_channels[2],
-            decoder_channels[2],
-            negative_slope,
-        )
+        self.up3 = self._make_upsample(decoder_channels[1], decoder_channels[2])
+        self.conv3 = ConvBlock(concat3, decoder_channels[2], negative_slope)
 
         # Stage 2: c2 + skip1 (c3) -> upsample -> conv -> c3
-        self.up2 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
-        self.conv2 = ConvBlock(
-            decoder_channels[2] + decoder_channels[3],
-            decoder_channels[3],
-            negative_slope,
-        )
+        self.up2 = self._make_upsample(decoder_channels[2], decoder_channels[3])
+        self.conv2 = ConvBlock(concat2, decoder_channels[3], negative_slope)
 
         # Stage 1: c3 -> conv -> c4 -> 1x1 conv -> num_classes
         self.conv1 = ConvBlock(decoder_channels[3], decoder_channels[4], negative_slope)
         self.seg_head = nn.Conv2d(decoder_channels[4], num_classes, kernel_size=1)
+
+    def _make_upsample(self, in_channels: int, out_channels: int) -> nn.Module:
+        """Create upsampling layer based on mode.
+
+        Args:
+            in_channels: Input channels (used for deconv)
+            out_channels: Output channels (used for deconv)
+
+        Returns:
+            Upsampling module
+        """
+        if self.upsample_mode == "deconv":
+            return nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        else:  # bilinear (default fallback)
+            return nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
 
     def forward(
         self,
