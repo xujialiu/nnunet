@@ -509,6 +509,7 @@ def create_segmentation_model(
     # UNETR-specific decoder params
     decoder_channels: Optional[List[int]] = None,
     negative_slope: float = 0.01,
+    upsample_mode: str = "deconv",
     **kwargs,
 ) -> nn.Module:
     """Factory function to create UNETR segmentation models.
@@ -527,6 +528,7 @@ def create_segmentation_model(
         decoder_channels: Channel dimensions for decoder [c0, c1, c2, c3, c4]
                          Default: [512, 256, 128, 64, 32]
         negative_slope: LeakyReLU negative slope (default: 0.01)
+        upsample_mode: "deconv" (learnable) or "bilinear" (fixed). Default: "deconv"
         **kwargs: Additional params (ignored for forward compatibility)
 
     Returns:
@@ -541,6 +543,7 @@ def create_segmentation_model(
         num_classes=num_classes,
         decoder_channels=decoder_channels,
         negative_slope=negative_slope,
+        upsample_mode=upsample_mode,
         checkpoint_path=checkpoint_path,
         freeze_backbone=freeze_backbone,
         use_lora=use_lora,
