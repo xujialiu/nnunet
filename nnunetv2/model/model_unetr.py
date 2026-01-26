@@ -297,6 +297,7 @@ class UNETRSegmentationModel(nn.Module):
         num_classes: int = 1,
         decoder_channels: Optional[List[int]] = None,
         negative_slope: float = 0.01,
+        upsample_mode: str = "deconv",
         checkpoint_path: Optional[str] = None,
         freeze_backbone: bool = False,
         use_lora: bool = False,
@@ -347,6 +348,7 @@ class UNETRSegmentationModel(nn.Module):
             decoder_channels=decoder_channels,
             num_classes=num_classes,
             negative_slope=negative_slope,
+            upsample_mode=upsample_mode,
         )
 
         # Freeze backbone if requested
