@@ -115,12 +115,16 @@ class nnUNetTrainer_vit(nnUNetTrainer):
             # Pass decoder config as kwargs - each model interprets its own parameters
             decoder_kwargs = dict(cfg.model.decoder) if cfg.model.decoder else {}
 
+            # When LoRA is disabled, freeze the backbone to preserve pretrained features
+            # When LoRA is enabled, PEFT handles freezing automatically
+            freeze_backbone = not cfg.lora.enabled
+
             self.network = create_model_fn(
                 backbone_name=cfg.model.backbone,
                 backbone_size=cfg.model.backbone_size,
                 num_classes=self.label_manager.num_segmentation_heads,
                 checkpoint_path=checkpoint_path,
-                freeze_backbone=False,  # LoRA will handle this
+                freeze_backbone=freeze_backbone,
                 use_lora=cfg.lora.enabled,
                 lora_rank=cfg.lora.r,
                 lora_alpha=cfg.lora.lora_alpha,
