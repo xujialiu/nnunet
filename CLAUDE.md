@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-nnU-Net v2 fork with Vision Transformer integration for medical image segmentation. Adds ViT backbones (DINOv3, DINOv2, RetFound, VisionFM), multiple decoders (UperNet, SegFormer, Primus), LoRA fine-tuning, and YAML configuration.
+nnU-Net v2 fork with Vision Transformer integration for medical image segmentation. Adds ViT backbones (DINOv3, DINOv2, RetFound, VisionFM), multiple decoders (DPT, UperNet, SegFormer, Primus), LoRA fine-tuning, and YAML configuration.
 
 ## Environment Setup
 
@@ -27,7 +27,7 @@ nnUNetv2_predict -i INPUT -o OUTPUT -d DATASET_ID -c CONFIGURATION -f FOLD
 
 # Custom ViT training (recommended)
 python nnUNetv2_train_vit.py DATASET_ID 2d FOLD --config nnunetv2/configs/segformer.yaml
-# Configs: segformer.yaml, primus.yaml, primus_multiscale.yaml
+# Configs: dpt.yaml, upernet.yaml, segformer.yaml, primus.yaml, primus_multiscale.yaml
 
 # Legacy ViT training
 python nnUNetv2_train_nodeepsupervision_mymodel.py DATASET_ID 2d FOLD
@@ -37,7 +37,7 @@ python nnUNetv2_train_nodeepsupervision_mymodel.py DATASET_ID 2d FOLD
 
 | Directory | Purpose |
 |-----------|---------|
-| `nnunetv2/model/` | ViT models: `model.py` (UperNet), `model_segformer_*.py`, `primus.py` |
+| `nnunetv2/model/` | ViT models: `model_dpt.py`, `model_upernet.py`, `model_segformer_*.py`, `primus.py` |
 | `nnunetv2/configs/` | YAML configs for ViT training |
 | `nnunetv2/training/nnUNetTrainer/` | Base trainer + variants in `variants/` |
 | `nnunetv2/run/` | Training entry points |
@@ -47,12 +47,12 @@ python nnUNetv2_train_nodeepsupervision_mymodel.py DATASET_ID 2d FOLD
 ## ViT Model Architecture
 
 ```
-ViT Backbone → Multi-level features → [UperNet|SegFormer|Primus] Decoder → Segmentation
+ViT Backbone → Multi-level features → [DPT|UperNet|SegFormer|Primus] Decoder → Segmentation
 ```
 
 **Backbones**: DINOv3 (patch16), DINOv2 (patch14, auto-padded), RetFound, VisionFM
 
-**Models**: `ViTSegmentationModel`, `SegFormerSegmentationModel`, `PrimusSegmentationModel`, `PrimusMultiscaleSegmentationModel`
+**Models**: `DPTSegmentationModel`, `UperNetSegmentationModel`, `SegFormerSegmentationModel`, `PrimusSegmentationModel`, `PrimusMultiscaleSegmentationModel`
 
 **Trainers**: `nnUNetTrainer_vit` (recommended), `nnUNetTrainer_mymodel`, `nnUNetTrainer_m2f`
 
@@ -80,11 +80,14 @@ train:
 ## Model API
 
 ```python
-from nnunetv2.model.model import create_segmentation_model
+# Each model file has create_segmentation_model()
+from nnunetv2.model.model_dpt import create_segmentation_model  # DPT
+from nnunetv2.model.model_upernet import create_segmentation_model  # UperNet
+from nnunetv2.model.model_segformer_1 import create_segmentation_model  # SegFormer
 
 model = create_segmentation_model(
-    model_name="dinov3", model_size="large", num_classes=4,
-    use_lora=True, lora_r=16
+    backbone_name="dinov3", backbone_size="large", num_classes=4,
+    use_lora=True, lora_rank=16
 )
 model.print_trainable_parameters()  # Inspect params
 ```

@@ -122,7 +122,8 @@ This fork adds Vision Transformer integration via `nnunetv2/model/`:
 
 | Model | File | Decoder | Use Case |
 |-------|------|---------|----------|
-| `ViTSegmentationModel` | `model.py` | UperNet | Multi-scale with ASPP |
+| `DPTSegmentationModel` | `model_dpt.py` | DPT | Dense prediction with reassemble/fusion |
+| `UperNetSegmentationModel` | `model_upernet.py` | UperNet | Multi-scale with PPM + FPN |
 | `SegFormerSegmentationModel` | `model_segformer_*.py` | SegFormer MLP | Lightweight, fast |
 | `PrimusSegmentationModel` | `primus.py` | Patch Decode | Simple, direct |
 | `PrimusMultiscaleSegmentationModel` | `primus.py` | Multi-layer Patch | Simple + multi-scale |
@@ -135,7 +136,7 @@ Vision Transformer Backbone (frozen or fine-tuned)
          │  (layers [2,5,8,11] for 12-layer ViT)
          │  (layers [5,11,17,23] for 24-layer ViT)
          ▼
-    [Decoder Head] (UperNet | SegFormer | PatchDecode)
+    [Decoder Head] (DPT | UperNet | SegFormer | PatchDecode)
          │
          ├─ Multi-scale aggregation (varies by decoder)
          ▼
