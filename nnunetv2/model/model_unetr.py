@@ -256,3 +256,134 @@ class UNETRDecoder(nn.Module):
         logits = self.seg_head(x)
 
         return logits
+
+
+# Layer indices for multi-scale feature extraction
+LAYER_INDICES = {
+    12: [2, 5, 8, 11],    # Base models (12 transformer blocks)
+    24: [5, 11, 17, 23],  # Large models (24 transformer blocks)
+}
+
+
+class UNETRSegmentationModel(nn.Module):
+    """UNETR segmentation model with ViT backbone.
+
+    Architecture from: Hatamizadeh et al. "UNETR: Transformers for 3D Medical Image Segmentation"
+    Adapted for 2D segmentation.
+    """
+
+    def __init__(
+        self,
+        backbone_name: str = "dinov3",
+        backbone_size: str = "large",
+        num_classes: int = 1,
+        decoder_channels: Optional[List[int]] = None,
+        negative_slope: float = 0.01,
+        checkpoint_path: Optional[str] = None,
+        freeze_backbone: bool = False,
+        use_lora: bool = False,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+        lora_dropout: float = 0.05,
+        lora_target_modules: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.num_classes = num_classes
+
+        # Default decoder channels: [512, 256, 128, 64, 32]
+        if decoder_channels is None:
+            decoder_channels = [512, 256, 128, 64, 32]
+        self.decoder_channels = decoder_channels
+
+        # Create backbone
+        self.backbone, self.backbone_patch_size, _ = create_backbone(
+            model_name=backbone_name,
+            model_size=backbone_size,
+            checkpoint_path=checkpoint_path,
+        )
+
+        # Determine feature extraction layers
+        num_layers = len(self.backbone.blocks)
+        self.feature_indices = LAYER_INDICES.get(
+            num_layers,
+            [
+                num_layers // 4 - 1,
+                num_layers // 2 - 1,
+                3 * num_layers // 4 - 1,
+                num_layers - 1,
+            ],
+        )
+
+        # Get backbone embed dimension
+        backbone_embed_dim = self.backbone.embed_dim
+
+        # UNETR encoder (skip connection preparation)
+        self.encoder = UNETREncoder(
+            backbone_embed_dim=backbone_embed_dim,
+            decoder_channels=decoder_channels,
+            negative_slope=negative_slope,
+        )
+
+        # UNETR decoder (U-Net style)
+        self.decoder = UNETRDecoder(
+            decoder_channels=decoder_channels,
+            num_classes=num_classes,
+            negative_slope=negative_slope,
+        )
+
+        # Freeze backbone if requested
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+
+        # Enable LoRA if requested
+        if use_lora:
+            self.enable_lora(
+                rank=lora_rank,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                target_modules=lora_target_modules,
+            )
+
+    def enable_lora(
+        self,
+        rank: int = 8,
+        lora_alpha: float = 16.0,
+        lora_dropout: float = 0.05,
+        target_modules: Optional[List[str]] = None,
+    ) -> None:
+        """Enable LoRA fine-tuning on the backbone.
+
+        Will be implemented in Task 6.
+        """
+        raise NotImplementedError("LoRA support will be added in Task 6")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Save original size for cropping
+        _, _, h, w = x.shape
+
+        # Pad input to be divisible by backbone patch size
+        ps = self.backbone_patch_size
+        pad_h = (ps - h % ps) % ps
+        pad_w = (ps - w % ps) % ps
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode="reflect")
+
+        # Extract multi-level features from ViT
+        features = get_vit_features(
+            self.backbone,
+            x,
+            indices=self.feature_indices,
+        )
+
+        # Prepare skip connections via UNETR encoder
+        skip1, skip2, skip3, bottleneck = self.encoder(list(features))
+
+        # Decode via UNETR decoder
+        logits = self.decoder(skip1, skip2, skip3, bottleneck)
+
+        # Crop to original size
+        if pad_h > 0 or pad_w > 0:
+            logits = logits[:, :, :h, :w]
+
+        return logits
