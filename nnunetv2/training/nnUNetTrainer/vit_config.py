@@ -12,7 +12,7 @@ class ViTModelConfig:
     backbone_size: str = "large"  # small, base, large
     checkpoint_path: str = ""  # Optional path to backbone checkpoint
     # Free-form decoder config - each model interprets its own parameters
-    decoder: Dict[str, Any] = field(default_factory=lambda: {"hidden_size": 256})
+    decoder: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
