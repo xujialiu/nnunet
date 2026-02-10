@@ -20,5 +20,5 @@ train:
   weight_decay: 0.00003
   gradient_clip: 12.0
   num_epochs: 1000           # Custom: train for 500 epochs                                                                                                                             
-  num_iterations_per_epoch: 250   # Custom: 100 training batches/epoch                                                                                                                 
+  num_iterations_per_epoch: 100   # Custom: 100 training batches/epoch                                                                                                                 
   num_val_iterations_per_epoch: 50  # Custom: 20 validation batches/epoch   

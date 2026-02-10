@@ -7,7 +7,7 @@ model:
   backbone_size: "large"
   checkpoint_path: ""
   decoder:
-    decoder_channels: [512, 256, 128, 64, 32]
+    decoder_channels: [1024, 512, 256, 128, 64] #[512, 256, 128, 64, 32]
     negative_slope: 0.01
     upsample_mode: "deconv"
 

@@ -12,7 +12,7 @@ model:
     readout_type: "project"  # Options: "project", "add", "ignore"
 
 lora:
-  enabled: false
+  enabled: True
   r: 8
   lora_alpha: 16
   target_modules: ["qkv"]

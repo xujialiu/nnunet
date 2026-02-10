@@ -34,7 +34,7 @@ class ViTTrainConfig:
       - initial_lr: 1e-2
       - weight_decay: 3e-5
       - num_epochs: 1000
-      - num_iterations_per_epoch: 250
+      - num_iterations_per_epoch: 100
       - num_val_iterations_per_epoch: 50
     """
     initial_lr: Optional[float] = None

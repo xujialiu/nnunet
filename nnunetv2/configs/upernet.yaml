@@ -23,5 +23,5 @@ train:
   weight_decay: 0.00003
   gradient_clip: 12.0
   num_epochs: 1000
-  num_iterations_per_epoch: 250
+  num_iterations_per_epoch: 100
   num_val_iterations_per_epoch: 50

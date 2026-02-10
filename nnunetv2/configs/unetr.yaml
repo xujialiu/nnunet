@@ -7,12 +7,12 @@ model:
   backbone_size: "large"
   checkpoint_path: ""
   decoder:
-    decoder_channels: [512, 256, 128, 64, 32]
+    decoder_channels: [512, 256, 128, 64, 32] #[1024, 512, 256, 128, 64] #[512, 256, 128, 64, 32]
     negative_slope: 0.01
     upsample_mode: "deconv"  # Options: "deconv" (learnable), "bilinear" (fixed)
 
 lora:
-  enabled: true
+  enabled: false
   r: 8
   lora_alpha: 16
   target_modules: ["qkv"]
@@ -23,5 +23,5 @@ train:
   weight_decay: 0.0001
   gradient_clip: 12.0
   num_epochs: 1000
-  num_iterations_per_epoch: 250
+  num_iterations_per_epoch: 100
   num_val_iterations_per_epoch: 50
